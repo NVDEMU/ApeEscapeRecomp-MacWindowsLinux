@@ -979,19 +979,7 @@ static void ape_escape_draw_update_release_center(const LauncherTheme& th) {
     if (!ImGui::CollapsingHeader("UPDATE & RELEASE CENTER")) return;
     const std::string info = ape_escape_build_info();
     ImGui::TextWrapped("Installed build: %s", info.c_str());
-    ImGui::TextWrapped("The Windows/macOS updater checks this repository's Nightly release and verifies SHA-256 before installation. Linux AppImage updates remain manual.");
-    if (ImGui::Button("Check for Nightly Updates", ImVec2(px(220.0f), px(32.0f)))) {
-        std::string error;
-        const auto safety_snapshot = ape_escape_create_save_backup();
-        if (safety_snapshot.empty()) {
-            s_ape_update_center_status = "Update check was not started because the automatic safety backup failed.";
-        } else if (launch_nvd123_nightly_updater(&error)) {
-            s_ape_update_center_status = "Safety backup created. Updater opened; close Ape Escape when asked to install.";
-        } else {
-            s_ape_update_center_status = error;
-        }
-    }
-    ImGui::SameLine();
+    ImGui::TextWrapped("Use the dedicated nvd123 Nightly Updates panel above to check for and install Windows/macOS updates. This section provides release links and build details; Linux AppImage updates remain manual.");
     if (ImGui::Button("Open Changelog", ImVec2(px(160.0f), px(32.0f)))) {
         if (!SDL_OpenURL("https://github.com/NVDEMU/ApeEscapeRecomp-MacWindowsLinux/blob/master/CHANGELOG.md"))
             s_ape_update_center_status = "Could not open CHANGELOG.md.";

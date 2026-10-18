@@ -1,12 +1,12 @@
 # Changelog
 
-- Added a Settings-based OST player with Archive.org track search, on-demand downloads, play/pause, next/previous, seeking, and saved volume. Music files remain in per-user data and are not bundled in releases.
 
 All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded here. Nightly release notes are generated from the **Unreleased** section; tagged releases use the section matching their version.
 
 ## [Unreleased]
 
 ### Added
+- Added a Settings-based OST player with Archive.org track search, on-demand downloads, play/pause, next/previous, seeking, and saved volume. Music files remain in per-user data and are not bundled in releases.
 - Mod Manager filters for all, enabled, disabled, experimental, and needs-attention features, plus confirmed Original Experience, Visual Enhancements, and Challenge Run presets.
 - Confirmation dialogs for Enable All and Disable All to avoid accidentally changing the whole mod selection.
 - Setup Doctor checks for the selected disc, disc identity, custom BIOS path, app-data write access, and save-backup availability, with a copyable diagnostic report and shortcuts to repair actions.
@@ -18,6 +18,7 @@ All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded h
 ### Changed
 - Save restoration now delays retention pruning until after the chosen backup is applied, preventing a selected old snapshot from being pruned before restore completes.
 - The Mods page follows the active filter when selecting feature/package details and confirms bulk toggles before applying them.
+- Removed the duplicate Nightly updater button from Update & Release Center; the single dedicated updater control prevents conflicting Dear ImGui IDs and accidental double-starts.
 
 ## [1.0.0] - 2026-10-17
 
