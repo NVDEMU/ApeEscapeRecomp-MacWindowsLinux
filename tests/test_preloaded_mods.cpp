@@ -81,6 +81,7 @@ int main(int argc, char** argv) {
              "ape.assist.infinite-health",
              "ape.assist.infinite-air",
              "ape.assist.all-gadgets",
+             "ape.assist.unlock-all-stages",
              "ape.draw-distance.extended",
              "ape.qol.quick-retry",
              "ape.qol.camera-sensitivity",
@@ -166,7 +167,8 @@ int main(int argc, char** argv) {
          {std::pair{"infinite-lives", "ape.assist.infinite-lives"},
           std::pair{"infinite-health", "ape.assist.infinite-health"},
           std::pair{"infinite-air", "ape.assist.infinite-air"},
-          std::pair{"all-gadgets", "ape.assist.all-gadgets"}}) {
+          std::pair{"all-gadgets", "ape.assist.all-gadgets"},
+          std::pair{"unlock-all-stages", "ape.assist.unlock-all-stages"}}) {
         if (!manager.set_feature_enabled(
                 "ape.enhancement.gameplay-assists", feature, true, &error)) {
             return fail(error);
@@ -423,7 +425,7 @@ int main(int argc, char** argv) {
     fs::remove_all(root, ec);
     std::cout << "Ape Escape preloaded mods: 11 packages, every feature default-off, "
                  "3 widescreen choices, 7 interpolated frame-rate choices, "
-                 "four independent Gameplay Assist toggles, Extended Draw Distance opt-in, "
+                 "five independent Gameplay Assist toggles, Extended Draw Distance opt-in, "
                  "Quick Gadget Select guarded patch, five QoL features, four Challenge Pack features/options and two Hardcore Challenge features\n";
     return 0;
 }
