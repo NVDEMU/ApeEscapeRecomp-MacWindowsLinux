@@ -826,7 +826,10 @@ QUICK_TOOLS = r'''
         ape_escape_open_nightly_page();
     if (!s_ape_escape_quick_status.empty())
         ImGui::TextWrapped("%s", s_ape_escape_quick_status.c_str());
-    ape_escape_draw_save_protection_center(th, quick_button_w, quick_gap);
+    ape_escape_draw_save_protection_center(m, th, quick_button_w, quick_gap);
+    ape_escape_draw_setup_doctor(m, th);
+    ape_escape_draw_controller_test_lab(th);
+    ape_escape_draw_update_release_center(th);
 '''
 
 OLD_UI_DEFAULTS = r'''static const SDL_Scancode kPsxDefaults[LNG_PSX_PAD_BUTTON_COUNT] = {
@@ -1089,6 +1092,204 @@ def main() -> int:
             return fail("Pinned launcher no longer matches the guarded extra-feature helper anchor.")
         launcher_text = launcher_text.replace(DRAW_ANCHOR, extra_helpers + "\n" + DRAW_ANCHOR, 1)
 
+    # Project-owned Mod Manager improvements. State/prototypes must appear
+    # before draw_mod_features()/draw_mods(); implementations are injected by
+    # launcher_extra_views.inc immediately before draw_dashboard().
+    mod_decl_marker = "APE_ESCAPE_MOD_MANAGER_DECLS"
+    mod_decl_anchor = "static bool mod_feature_text_matches("
+    mod_declarations = """/* APE_ESCAPE_MOD_MANAGER_DECLS */
+static int s_ape_mod_filter = 0;
+static bool ape_escape_mod_filter_matches(const RecompLauncherCModFeature& feature);
+static bool ape_escape_mod_package_filter_matches(
+    const RecompLauncherCModPackage& package,
+    const RecompLauncherCModProvider* mods);
+static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const LauncherTheme& th);
+"""
+    if mod_decl_marker not in launcher_text:
+        if args.check:
+            return fail("Mod Manager state and forward declarations have not been applied.", 1)
+        if launcher_text.count(mod_decl_anchor) != 1:
+            return fail("Pinned launcher no longer matches the guarded mod-feature matcher anchor.")
+        launcher_text = launcher_text.replace(mod_decl_anchor, mod_declarations + "\n" + mod_decl_anchor, 1)
+    elif ("static int s_ape_mod_filter = 0;" not in launcher_text or
+          "static void ape_escape_draw_mod_manager_overhaul" not in launcher_text):
+        return fail("Mod Manager declaration marker exists, but required declarations are missing.")
+
+    # Selection follows the visible result set, including the empty-result case.
+    old_visible_loop = """        ++listed_count;
+        if (first_listed < 0) first_listed = index;
+        if (index == m->mod_selected) selected_listed = true;
+        if (!mod_feature_text_matches(m->mod_search, item.feature)) continue;
+        visible_features.push_back(item);"""
+    new_visible_loop = """        ++listed_count;
+        if (!ape_escape_mod_filter_matches(item.feature) ||
+            !mod_feature_text_matches(m->mod_search, item.feature)) continue; /* APE_ESCAPE_MOD_FEATURE_FILTER */
+        if (index == m->mod_selected) selected_listed = true;
+        visible_features.push_back(item);"""
+    if "APE_ESCAPE_MOD_FEATURE_VISIBLE_SELECTION" not in launcher_text:
+        if args.check:
+            return fail("Mod Manager visible-selection handling has not been applied.", 1)
+        if launcher_text.count(old_visible_loop) != 1:
+            return fail("Pinned launcher no longer matches the guarded visible-feature loop.")
+        launcher_text = launcher_text.replace(
+            old_visible_loop,
+            new_visible_loop + "\n        // APE_ESCAPE_MOD_FEATURE_VISIBLE_SELECTION",
+            1,
+        )
+        feature_start = launcher_text.find("static void draw_mod_features(")
+        feature_end = launcher_text.find("void draw_mods(", feature_start)
+        if feature_start < 0 or feature_end < 0:
+            return fail("Pinned launcher no longer matches the guarded feature-page boundaries.")
+        feature_section = launcher_text[feature_start:feature_end]
+        if feature_section.count("    int first_listed = -1;\n") != 1:
+            return fail("Pinned launcher feature selection variable no longer matches the guarded anchor.")
+        feature_section = feature_section.replace("    int first_listed = -1;\n", "", 1)
+        launcher_text = launcher_text[:feature_start] + feature_section + launcher_text[feature_end:]
+    old_selection_repair = """    if (!selected_listed && listed_count > 0) {
+        m->mod_selected = visible_features.empty()
+            ? first_listed : visible_features.front().index;
+    }"""
+    new_selection_repair = """    if (!selected_listed) {
+        m->mod_selected = visible_features.empty() ? -1 : visible_features.front().index;
+    }"""
+    if "APE_ESCAPE_MOD_FEATURE_NO_MATCH_SELECTION" not in launcher_text:
+        if args.check:
+            return fail("Mod Manager no-match selection handling has not been applied.", 1)
+        if launcher_text.count(old_selection_repair) != 1:
+            return fail("Pinned launcher no longer matches the guarded selected-feature repair.")
+        launcher_text = launcher_text.replace(
+            old_selection_repair,
+            new_selection_repair + "\n    // APE_ESCAPE_MOD_FEATURE_NO_MATCH_SELECTION",
+            1,
+        )
+    old_detail_guard = """        if (listed_count > 0 &&
+            mods->feature_get(mods->ctx, m->mod_selected, &feature) &&"""
+    new_detail_guard = """        if (m->mod_selected >= 0 && listed_count > 0 &&
+            mods->feature_get(mods->ctx, m->mod_selected, &feature) &&"""
+    if "APE_ESCAPE_MOD_FEATURE_DETAIL_GUARD" not in launcher_text:
+        if args.check:
+            return fail("Mod Manager detail selection guard has not been applied.", 1)
+        if launcher_text.count(old_detail_guard) != 1:
+            return fail("Pinned launcher no longer matches the guarded selected-feature detail.")
+        launcher_text = launcher_text.replace(
+            old_detail_guard,
+            new_detail_guard.replace("if (", "if (/* APE_ESCAPE_MOD_FEATURE_DETAIL_GUARD */ ", 1),
+            1,
+        )
+
+    # Search, filter, and selected-package state must all follow visible results.
+    old_package_loop = """        int visible = 0;
+        int first_listed = -1;
+        bool selected_listed = false;
+        for (int i = 0; i < count; ++i) {
+            RecompLauncherCModPackage package{};
+            if (!mods->package_get(mods->ctx, i, &package) ||
+                !launcher_mod_package_listed(mods, package.id)) continue;
+            if (first_listed < 0) first_listed = i;
+            if (i == m->mod_package_selected) selected_listed = true;
+            if (!mod_text_matches(m->mod_search, package)) continue;
+            visible++;"""
+    new_package_loop = """        int visible = 0;
+        int first_matching = -1;
+        bool selected_matching = false;
+        for (int i = 0; i < count; ++i) {
+            RecompLauncherCModPackage package{};
+            if (!mods->package_get(mods->ctx, i, &package) ||
+                !launcher_mod_package_listed(mods, package.id)) continue;
+            if (!mod_text_matches(m->mod_search, package) ||
+                !ape_escape_mod_package_filter_matches(package, mods)) continue; /* APE_ESCAPE_MOD_PACKAGE_FILTER */
+            if (first_matching < 0) first_matching = i;
+            if (i == m->mod_package_selected) selected_matching = true;
+            visible++;"""
+    if "APE_ESCAPE_MOD_PACKAGE_FILTER" not in launcher_text:
+        if args.check:
+            return fail("Mod Manager package filtering has not been applied.", 1)
+        if launcher_text.count(old_package_loop) != 1:
+            return fail("Pinned launcher no longer matches the guarded visible-package loop.")
+        launcher_text = launcher_text.replace(old_package_loop, new_package_loop, 1)
+        old_package_selection = """        if (!selected_listed && first_listed >= 0)
+            m->mod_package_selected = first_listed;"""
+        new_package_selection = """        if (!selected_matching && first_matching >= 0)
+            m->mod_package_selected = first_matching;"""
+        if launcher_text.count(old_package_selection) != 1:
+            return fail("Pinned launcher no longer matches the guarded package selection repair.")
+        launcher_text = launcher_text.replace(old_package_selection, new_package_selection, 1)
+
+    # Show a package's details only when it also passes the active filter.
+    old_package_detail = """        if (mods->package_get(mods->ctx, m->mod_package_selected, &package) &&
+            launcher_mod_package_listed(mods, package.id)) {"""
+    new_package_detail = """        if (mods->package_get(mods->ctx, m->mod_package_selected, &package) &&
+            launcher_mod_package_listed(mods, package.id) &&
+            mod_text_matches(m->mod_search, package) &&
+            ape_escape_mod_package_filter_matches(package, mods)) { /* APE_ESCAPE_MOD_PACKAGE_DETAIL_FILTER */"""
+    if "APE_ESCAPE_MOD_PACKAGE_DETAIL_FILTER" not in launcher_text:
+        if args.check:
+            return fail("Mod Manager package detail filtering has not been applied.", 1)
+        if launcher_text.count(old_package_detail) != 1:
+            return fail("Pinned launcher no longer matches the guarded package detail.")
+        launcher_text = launcher_text.replace(old_package_detail, new_package_detail, 1)
+
+    # The presets row is available in either Features or Installed packages.
+    mod_tools_marker = "APE_ESCAPE_MOD_MANAGER_TOOLS"
+    mod_tools_anchor = "    draw_mod_catalog_diagnostics(m, th);"
+    mod_tools_insert = mod_tools_anchor + "\n    ape_escape_draw_mod_manager_overhaul(m, th); // " + mod_tools_marker
+    if mod_tools_marker not in launcher_text:
+        if args.check:
+            return fail("Mod Manager tools are not connected to the Mods page.", 1)
+        if launcher_text.count(mod_tools_anchor) != 1:
+            return fail("Pinned launcher no longer matches the guarded Mods diagnostics anchor.")
+        launcher_text = launcher_text.replace(mod_tools_anchor, mod_tools_insert, 1)
+
+    # Bulk toggles are destructive to a player's current mod selection; confirm.
+    bulk_marker = "APE_ESCAPE_CONFIRM_BULK_MOD_ACTIONS"
+    old_bulk = """    if (ImGui::Button(ui_text("Enable all")))
+        set_all_mod_features(m, true);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", ui_text("Enable every installed mod feature"));
+    ImGui::SameLine();
+    if (ImGui::Button(ui_text("Disable all")))
+        set_all_mod_features(m, false);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", ui_text("Disable every installed mod feature"));"""
+    new_bulk = """    /* APE_ESCAPE_CONFIRM_BULK_MOD_ACTIONS */
+    if (ImGui::Button(ui_text("Enable all")))
+        ImGui::OpenPopup("Confirm Enable All Mod Features");
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", ui_text("Enable every installed mod feature"));
+    ImGui::SameLine();
+    if (ImGui::Button(ui_text("Disable all")))
+        ImGui::OpenPopup("Confirm Disable All Mod Features");
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", ui_text("Disable every installed mod feature"));
+    if (ImGui::BeginPopupModal("Confirm Enable All Mod Features", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped("%s", ui_text("Enable every listed installed mod feature? Hidden/internal features are left unchanged. Review the list before pressing PLAY."));
+        if (ImGui::Button(ui_text("Enable All"), ImVec2(px(130), px(32)))) {
+            set_all_mod_features(m, true);
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(ui_text("Cancel"), ImVec2(px(100), px(32))))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+    if (ImGui::BeginPopupModal("Confirm Disable All Mod Features", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped("%s", ui_text("Disable every listed installed mod feature? Hidden/internal features are left unchanged; review the list before pressing PLAY."));
+        if (ImGui::Button(ui_text("Disable All"), ImVec2(px(130), px(32)))) {
+            set_all_mod_features(m, false);
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(ui_text("Cancel"), ImVec2(px(100), px(32))))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }"""
+    if bulk_marker not in launcher_text:
+        if args.check:
+            return fail("Mod Manager bulk-toggle confirmations have not been applied.", 1)
+        if launcher_text.count(old_bulk) != 1:
+            return fail("Pinned launcher no longer matches the guarded bulk-toggle controls.")
+        launcher_text = launcher_text.replace(old_bulk, new_bulk, 1)
+
     nav_marker = "APE_ESCAPE_MONKEPEDIA_NAV"
     if nav_marker not in launcher_text:
         if args.check:
@@ -1147,6 +1348,18 @@ def main() -> int:
 
     if "APE_ESCAPE_EXTRA_LAUNCHER_BODY" not in launcher_text:
         return fail("Daily Challenge, Stage Guide and Mod Toolkit view dispatch is missing.", 1)
+
+    for helper_symbol in (
+        "ape_escape_draw_save_protection_center",
+        "ape_escape_draw_setup_doctor",
+        "ape_escape_draw_controller_test_lab",
+        "ape_escape_draw_update_release_center",
+        "ape_escape_draw_mod_manager_overhaul",
+        "ape_escape_export_save_backup",
+        "ape_escape_list_save_backups",
+    ):
+        if helper_symbol not in extra_helpers:
+            return fail(f"Required launcher feature helper is missing: {helper_symbol}", 2)
 
     # Add the accessibility card at the end of the Settings page.
     if ACCESSIBILITY_MARKER not in launcher_text:
@@ -1393,7 +1606,7 @@ def main() -> int:
         print("Ape Escape theme/logo, Monkepedia manual checklist, rollback, accessibility, quick tools, and full keyboard defaults are present.")
     else:
         launcher_path.write_text(launcher_text, encoding="utf-8")
-        print("Applied Ape Escape theme/logo, Monkepedia manual checklist, rollback, and nvd123 Nightly updater patches.")
+        print("Applied Ape Escape theme/logo, mod manager tools, setup doctor, controller test lab, save protection, changelog center, Monkepedia, rollback, and Nightly updater patches.")
     return 0
 
 if __name__ == "__main__":

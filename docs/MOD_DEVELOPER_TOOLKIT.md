@@ -35,7 +35,11 @@ Every distributable package belongs under `mods/preloaded/packages/<package-id>/
 
 ## Save Protection Center
 
-The launcher dashboard provides **Create Backup Now** and **Restore Latest Backup**. It also creates a safety snapshot before launching the in-app updater or rollback helper; if a snapshot cannot be made, that operation is not started. Backup snapshots contain user-writable application data and the install-local `saves/` directory when present. Restore creates another safety snapshot, then merges files from the latest backup. It does not delete files that were added after the backup, and matching files may be overwritten. The rolling store keeps up to 20 snapshots. Keep external copies of important memory-card files as well.
+The launcher dashboard provides **Create Backup Now**, a selectable backup history, **Restore Selected**, and **Export Selected**. Restore creates a safety snapshot before applying an older snapshot, then merges files without deleting files absent from the selected snapshot. Export copies the selected snapshot into a chosen destination folder. Retention is configurable from 5 to 50 snapshots and is applied only after a successful backup or restore. The updater and rollback also create safety snapshots before starting. Keep external copies of important memory-card files as well.
+
+## Setup Doctor, Controller Test Lab, and release information
+
+The launcher **Setup Doctor** checks the selected disc path, disc identity, custom BIOS path, application-data write access, and whether a save backup exists. Its report contains build metadata and diagnostic status, not the disc image or full local file paths. **Controller Test Lab** reads live SDL gamepad state and offers an explicit optional rumble test; it does not change controller mappings. **Update & Release Center** opens the Nightly updater and the project changelog. Checksums remain the updater's responsibility and must pass before installation.
 
 ## Daily Challenge and Stage Guide
 

@@ -11,6 +11,8 @@
   ·
   <a href="https://github.com/NVDEMU/ApeEscapeRecomp-MacWindowsLinux/actions">Build status</a>
   ·
+  <a href="CHANGELOG.md">Changelog</a>
+  ·
   <a href="ISSUES.md">Known issues and research notes</a>
 </p>
 
@@ -64,9 +66,13 @@ The launcher keeps the usual configuration controls alongside this project's opt
 
 ### New launcher tools
 
-- **Save Protection Center** — manually create timestamped backups, with an automatic safety snapshot before launching the in-app updater or rollback. Restore asks for confirmation, creates a safety snapshot first, and merges matching files without deleting newer files. The rolling store keeps up to 20 backups.
+- **Save Protection Center** — browse timestamped snapshots, restore a selected backup, export a copy to another folder, and set retention from 5–50 backups. Restores ask for confirmation, create a safety snapshot first, and merge matching files without deleting newer files.
 - **Daily Challenge** — reproducible date-based challenge codes with two rules selected from the existing timed-hunt, no-damage, and limited-lives challenges. Challenge Pack mods must be enabled manually; completion history is local and self-reported, not automatically verified.
 - **Stage Knowledge Cards** — stage roster counts and source links from the existing North-American Monkepedia catalogue, plus general gameplay tips. These are not live tracking or route-verified walkthroughs.
+- **Mod Manager tools** — search mods, filter by enabled/disabled/experimental/needs-attention status, and apply confirmed Original Experience, Visual Enhancements, or Challenge Run presets. Enable All and Disable All require confirmation.
+- **Setup Doctor** — check the selected disc, BIOS path, application-data write access, and save-backup status; copy a diagnostic report and jump to repair actions.
+- **Controller Test Lab** — inspect connected gamepad buttons, sticks, and triggers, with an optional rumble test.
+- **Update & Release Center** — display installed build metadata, launch the Nightly updater, open release downloads, and access the changelog.
 - **Mod Developer Toolkit** — a launcher page with a copyable read-only native plugin template and a link to the [developer guide](docs/MOD_DEVELOPER_TOOLKIT.md). CI checks the example plugin and launcher integration.
 
 ### Optional mods

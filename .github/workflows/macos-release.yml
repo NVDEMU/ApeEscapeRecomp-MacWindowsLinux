@@ -18,6 +18,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Check changelog and generated release notes
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/render_release_notes.py tools/test_release_notes.py
+          python3 tools/test_release_notes.py
+          python3 tools/render_release_notes.py --ref refs/heads/master --version-file packaging/release/VERSION --changelog CHANGELOG.md --output "$RUNNER_TEMP/release-notes-preview.md"
       - name: Check launcher updater patch anchors
         run: |
           python3 tools/apply_recomp_ui_update_patch.py --ui-root recomp-ui
@@ -636,6 +642,13 @@ jobs:
           Path("dist/nightly-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
           print("Wrote dist/nightly-manifest.json for", manifest["channel"], manifest["commit"][:12])
 
+      - name: Render release notes from CHANGELOG.md
+        env:
+          RELEASE_REF: ${{ github.ref }}
+        run: |
+          set -euo pipefail
+          python3 tools/render_release_notes.py --ref "$RELEASE_REF" --version-file packaging/release/VERSION --changelog CHANGELOG.md --output release-notes.md
+
       - name: Publish or update the macOS release
         uses: softprops/action-gh-release@v2
         with:
@@ -644,14 +657,7 @@ jobs:
           prerelease: false
           make_latest: ${{ github.ref_type != 'tag' }}
           fail_on_unmatched_files: true
-          body: |
-            Windows, macOS, and Linux builds of Ape Escape Recompiled - Enhanced Edition, maintained by nvd123.
-
-            Downloads include Windows x64, macOS Apple Silicon (arm64), macOS Intel (x86_64) ZIP packages and Linux x86_64 AppImage. The Mac release also includes DMGs. Mac builds are ad-hoc signed, not Developer ID signed or notarized, so Gatekeeper may show a first-launch warning.
-
-            The in-app updater checks this repository's Nightly release, selects the supported Windows/macOS platform package, and verifies its SHA-256 checksum before installation. Linux AppImage updates are currently installed manually from Releases. The release includes nightly-manifest.json for update detection.
-
-            The game disc and retail PlayStation BIOS are not included. The packaged OpenBIOS is MIT-licensed.
+          body_path: release-notes.md
           files: |
             dist/*.zip
             dist/*.dmg

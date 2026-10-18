@@ -24,8 +24,14 @@ for token in required_views:
         raise SystemExit(f"launcher patch is missing integration marker: {token}")
 if "EXTRA_HELPERS_PATH = Path(\"tools/launcher_extra_views.inc\")" not in patch:
     raise SystemExit("launcher patch does not load the project-owned feature source")
-if "ape_escape_draw_save_protection_center(th, quick_button_w, quick_gap);" not in patch:
-    raise SystemExit("Save Protection Center is not connected to Quick Tools")
+for token in (
+    "ape_escape_draw_save_protection_center(m, th, quick_button_w, quick_gap);",
+    "ape_escape_draw_setup_doctor(m, th);",
+    "ape_escape_draw_controller_test_lab(th);",
+    "ape_escape_draw_update_release_center(th);",
+):
+    if token not in patch:
+        raise SystemExit(f"Quick Tools is missing launcher integration: {token}")
 if patch.count("const auto safety_snapshot = ape_escape_create_save_backup();") != 2:
     raise SystemExit("updater and rollback must each create a safety snapshot before launch")
 
@@ -36,17 +42,27 @@ for token in (
     "ape_escape_latest_save_backup",
     "ape_escape_prune_save_backups",
     "Create Safety Backup and Restore",
+    "ape_escape_list_save_backups",
+    "ape_escape_export_save_backup",
+    "s_ape_save_backup_retention",
+    "ape_escape_draw_setup_doctor",
+    "ape_escape_draw_controller_test_lab",
+    "ape_escape_draw_update_release_center",
+    "ape_escape_draw_mod_manager_overhaul",
+    "SDL_GAMEPAD_BUTTON_DPAD_RIGHT",
     "APE_ESCAPE_NEW_FEATURES_HELPER",
 ):
     if token not in helper:
         raise SystemExit(f"launcher helper is missing: {token}")
 restore = helper[helper.index("static bool ape_escape_restore_save_backup"):helper.index("/* SAVE PROTECTION CENTER")]
-if restore.index("ape_escape_create_save_backup()") > restore.index("ape_escape_copy_regular_tree("):
+if restore.index("ape_escape_create_save_backup(false)") > restore.index("ape_escape_copy_regular_tree("):
     raise SystemExit("restore must create a pre-restore safety backup before copying snapshot files")
+if "ape_escape_prune_save_backups(s_ape_save_backup_retention)" not in restore:
+    raise SystemExit("restore must prune backups only after the selected snapshot has been copied")
 if "skip_save_protection" not in helper:
     raise SystemExit("backup creation does not exclude its own backup directory")
-if "backups.size() <= 20u" not in helper:
-    raise SystemExit("backup history has no retention limit")
+if "std::max(5, std::min(50, value))" not in helper or "s_ape_save_backup_retention" not in helper:
+    raise SystemExit("backup history does not expose a bounded configurable retention limit")
 if "does not delete files" not in helper:
     raise SystemExit("save restore safety behavior is not described")
 
@@ -85,4 +101,14 @@ for filename in ("tools/package_macos.sh", "tools/package_release.ps1", "tools/p
     if "MOD_DEVELOPER_TOOLKIT.md" not in package or "example_plugin.c" not in package:
         raise SystemExit(f"{filename} does not ship the mod developer guide and template")
 
-print("Launcher feature integration, save-restore guardrails, daily challenge seed, stage guide data, and mod template checks passed.")
+for token in (
+    "APE_ESCAPE_MOD_MANAGER_DECLS",
+    "APE_ESCAPE_MOD_FEATURE_FILTER",
+    "APE_ESCAPE_MOD_PACKAGE_FILTER",
+    "APE_ESCAPE_MOD_MANAGER_TOOLS",
+    "APE_ESCAPE_CONFIRM_BULK_MOD_ACTIONS",
+):
+    if token not in patch:
+        raise SystemExit(f"Mod Manager patch is missing integration marker: {token}")
+
+print("Launcher feature integration, mod manager controls, save protection, daily challenge, stage guide, and plugin toolkit checks passed.")
