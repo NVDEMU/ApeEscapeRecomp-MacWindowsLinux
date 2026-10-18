@@ -1010,3 +1010,242 @@ static void ape_escape_draw_update_release_center(const LauncherTheme& th) {
     if (!s_ape_update_center_status.empty())
         ImGui::TextWrapped("%s", s_ape_update_center_status.c_str());
 }
+
+#if !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+/* APE_ESCAPE_OST_PLAYER: searchable Archive.org soundtrack player in Settings. */
+extern "C" bool ape_escape_audio_play(const char*);
+extern "C" void ape_escape_audio_pause();
+extern "C" void ape_escape_audio_resume();
+extern "C" void ape_escape_audio_stop();
+extern "C" bool ape_escape_audio_is_paused();
+extern "C" bool ape_escape_audio_has_track();
+extern "C" void ape_escape_audio_set_volume(float);
+extern "C" float ape_escape_audio_get_volume();
+extern "C" float ape_escape_audio_position();
+extern "C" float ape_escape_audio_duration();
+extern "C" void ape_escape_audio_seek(float);
+extern "C" const char* ape_escape_audio_last_error();
+
+struct ApeEscapeOstTrack { std::string filename, title; unsigned long long size=0; };
+static std::vector<ApeEscapeOstTrack> s_ape_ost_tracks;
+static bool s_ape_ost_manifest_loaded=false, s_ape_ost_first_refresh=false, s_ape_ost_volume_loaded=false;
+static int s_ape_ost_selected=-1, s_ape_ost_current=-1, s_ape_ost_process_kind=0;
+static std::string s_ape_ost_status, s_ape_ost_pending_filename;
+static char s_ape_ost_filter[128]={};
+#if defined(LNG_SDL3) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+static SDL_Process* s_ape_ost_process=nullptr;
+#endif
+
+static std::filesystem::path ape_escape_ost_root(){return ape_escape_data_directory()/"ost-player";}
+static std::filesystem::path ape_escape_ost_manifest(){return ape_escape_ost_root()/"tracks.tsv";}
+static std::filesystem::path ape_escape_ost_music_dir(){return ape_escape_ost_root()/"tracks";}
+
+static void ape_escape_ost_load_volume(){
+    if(s_ape_ost_volume_loaded)return;
+    s_ape_ost_volume_loaded=true;
+    float v=0.70f;std::ifstream in(ape_escape_ost_root()/"settings.ini");
+    if(!(in>>v)||!std::isfinite(v))v=0.70f;
+    ape_escape_audio_set_volume(std::max(0.0f,std::min(1.0f,v)));
+}
+static void ape_escape_ost_save_volume(){
+    std::error_code ec;std::filesystem::create_directories(ape_escape_ost_root(),ec);if(ec)return;
+    std::ofstream out(ape_escape_ost_root()/"settings.ini",std::ios::trunc);
+    if(out)out<<ape_escape_audio_get_volume()<<"\n";
+}
+static void ape_escape_ost_read_manifest(){
+    s_ape_ost_tracks.clear();std::ifstream in(ape_escape_ost_manifest());std::string line;
+    while(std::getline(in,line)){
+        const size_t a=line.find('\t');if(a==std::string::npos)continue;
+        const size_t b=line.find('\t',a+1);if(b==std::string::npos)continue;
+        ApeEscapeOstTrack t{line.substr(0,a),line.substr(a+1,b-a-1),0};
+        try{t.size=std::stoull(line.substr(b+1));}catch(...){t.size=0;}
+        if(t.filename.empty()||t.filename.find('/')!=std::string::npos||t.filename.find('\\')!=std::string::npos||
+           t.filename.size()<4||t.filename.substr(t.filename.size()-4)!=".mp3")continue;
+        s_ape_ost_tracks.push_back(t);
+    }
+    s_ape_ost_manifest_loaded=true;
+    if(s_ape_ost_tracks.empty())s_ape_ost_selected=-1;
+    else if(s_ape_ost_selected<0||s_ape_ost_selected>=static_cast<int>(s_ape_ost_tracks.size()))s_ape_ost_selected=0;
+}
+static void ape_escape_ost_scan_local(){
+    std::error_code ec;const auto dir=ape_escape_ost_music_dir();
+    if(!std::filesystem::is_directory(dir,ec)||ec)return;
+    for(std::filesystem::directory_iterator it(dir,ec),end;!ec&&it!=end;it.increment(ec)){
+        if(!it->is_regular_file(ec)||ec){ec.clear();continue;}
+        const auto path=it->path();std::string ext=path.extension().string();
+        std::transform(ext.begin(),ext.end(),ext.begin(),[](unsigned char c){return static_cast<char>(std::tolower(c));});
+        if(ext!=".mp3"&&ext!=".wav"&&ext!=".flac"&&ext!=".ogg")continue;
+        const std::string name=path.filename().string();
+        if(std::any_of(s_ape_ost_tracks.begin(),s_ape_ost_tracks.end(),[&](const auto&t){return t.filename==name;}))continue;
+        s_ape_ost_tracks.push_back({name,path.stem().string(),0});
+    }
+    std::sort(s_ape_ost_tracks.begin(),s_ape_ost_tracks.end(),[](const auto&a,const auto&b){return a.title<b.title;});
+    if(s_ape_ost_selected<0&&!s_ape_ost_tracks.empty())s_ape_ost_selected=0;
+}
+#if defined(LNG_SDL3) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+static std::filesystem::path ape_escape_ost_script(){
+    const char* raw=SDL_GetBasePath();
+    const std::filesystem::path base=raw&&raw[0]?std::filesystem::path(raw).lexically_normal():std::filesystem::path(".");
+#if defined(__APPLE__)
+    const auto resources=(base/"../Resources").lexically_normal();
+    const auto packaged=resources/"update"/"ape_escape_ost.py";
+    if(std::filesystem::is_regular_file(packaged))return packaged;
+#endif
+    return base/"update"/"ape_escape_ost.py";
+}
+static std::filesystem::path ape_escape_ost_python(){
+    const char* raw=SDL_GetBasePath();
+    const std::filesystem::path base=raw&&raw[0]?std::filesystem::path(raw).lexically_normal():std::filesystem::path(".");
+#if defined(__APPLE__)
+    const auto p=(base/"../Resources"/"overlay_toolchain"/"python"/"bin"/"python3").lexically_normal();
+    if(std::filesystem::is_regular_file(p))return p;
+#elif defined(_WIN32)
+    const auto p=base/"overlay_toolchain"/"python"/"python.exe";
+    if(std::filesystem::is_regular_file(p))return p;
+#else
+    const auto p=base/"overlay_toolchain"/"python"/"bin"/"python3";
+    if(std::filesystem::is_regular_file(p))return p;
+#endif
+#if defined(_WIN32)
+    return "python.exe";
+#else
+    return "python3";
+#endif
+}
+static bool ape_escape_ost_spawn(const std::vector<std::string>& args,int kind){
+    if(s_ape_ost_process){s_ape_ost_status="An OST operation is already running.";return false;}
+    const auto script=ape_escape_ost_script();
+    if(!std::filesystem::is_regular_file(script)){s_ape_ost_status="The OST helper is missing; reinstall the app.";return false;}
+    std::vector<std::string> values{ape_escape_ost_python().string(),script.string()};
+    values.insert(values.end(),args.begin(),args.end());
+    std::vector<const char*> argv;argv.reserve(values.size()+1);
+    for(const auto& value:values)argv.push_back(value.c_str());
+    argv.push_back(nullptr);
+    s_ape_ost_process=SDL_CreateProcess(argv.data(),false);
+    if(!s_ape_ost_process){s_ape_ost_status=std::string("Could not start OST helper: ")+SDL_GetError();return false;}
+    s_ape_ost_process_kind=kind;return true;
+}
+static void ape_escape_ost_refresh(){
+    std::error_code ec;std::filesystem::create_directories(ape_escape_ost_root(),ec);
+    if(ec){s_ape_ost_status="Could not create the OST data folder.";return;}
+    if(ape_escape_ost_spawn({"list",ape_escape_ost_manifest().string()},1))s_ape_ost_status="Loading track list from Archive.org…";
+}
+static void ape_escape_ost_download(const ApeEscapeOstTrack& track){
+    std::error_code ec;std::filesystem::create_directories(ape_escape_ost_music_dir(),ec);
+    if(ec){s_ape_ost_status="Could not create the OST music folder.";return;}
+    s_ape_ost_pending_filename=track.filename;
+    if(ape_escape_ost_spawn({"download",track.filename,ape_escape_ost_music_dir().string()},2))
+        s_ape_ost_status="Downloading “"+track.title+"” from Archive.org…";
+}
+static void ape_escape_ost_poll(){
+    if(!s_ape_ost_process)return;
+    int exit_code=-255;if(!SDL_WaitProcess(s_ape_ost_process,false,&exit_code))return;
+    SDL_DestroyProcess(s_ape_ost_process);s_ape_ost_process=nullptr;
+    const int kind=s_ape_ost_process_kind;s_ape_ost_process_kind=0;
+    if(kind==1){
+        if(exit_code==0){ape_escape_ost_read_manifest();s_ape_ost_status="Loaded "+std::to_string(s_ape_ost_tracks.size())+" Archive.org tracks.";}
+        else{s_ape_ost_status="Could not load Archive.org tracks. Check your connection and retry.";ape_escape_ost_scan_local();}
+    }else if(kind==2){
+        const auto path=ape_escape_ost_music_dir()/s_ape_ost_pending_filename;std::error_code ec;
+        if(exit_code==0&&std::filesystem::is_regular_file(path,ec)&&!ec&&std::filesystem::file_size(path,ec)>0&&!ec){
+            const auto found=std::find_if(s_ape_ost_tracks.begin(),s_ape_ost_tracks.end(),[](const auto&t){return t.filename==s_ape_ost_pending_filename;});
+            s_ape_ost_current=found==s_ape_ost_tracks.end()?-1:static_cast<int>(std::distance(s_ape_ost_tracks.begin(),found));
+            if(ape_escape_audio_play(path.string().c_str()))s_ape_ost_status="Now playing: "+(found==s_ape_ost_tracks.end()?path.stem().string():found->title);
+            else s_ape_ost_status=std::string("Playback failed: ")+ape_escape_audio_last_error();
+        }else s_ape_ost_status="Track download failed. Check your connection and retry.";
+    }
+}
+#endif
+static void ape_escape_ost_play_selected(){
+    if(s_ape_ost_selected<0||s_ape_ost_selected>=static_cast<int>(s_ape_ost_tracks.size())){s_ape_ost_status="Select a track first.";return;}
+    const auto t=s_ape_ost_tracks[static_cast<size_t>(s_ape_ost_selected)];
+    const auto path=ape_escape_ost_music_dir()/t.filename;std::error_code ec;
+    if(std::filesystem::is_regular_file(path,ec)&&!ec&&std::filesystem::file_size(path,ec)>0&&!ec){
+        if(ape_escape_audio_play(path.string().c_str())){s_ape_ost_current=s_ape_ost_selected;s_ape_ost_status="Now playing: "+t.title;}
+        else s_ape_ost_status=std::string("Playback failed: ")+ape_escape_audio_last_error();
+        return;
+    }
+#if defined(LNG_SDL3) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    ape_escape_ost_download(t);
+#else
+    s_ape_ost_status="Automatic downloads are unavailable on this target. Open Archive.org or place audio files in the OST folder.";
+#endif
+}
+static void ape_escape_ost_draw(const LauncherTheme& th){
+    ape_escape_ost_load_volume();
+    if(!s_ape_ost_manifest_loaded){
+        ape_escape_ost_read_manifest();
+#if defined(LNG_SDL3) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+        if(s_ape_ost_tracks.empty()&&!s_ape_ost_first_refresh){s_ape_ost_first_refresh=true;ape_escape_ost_refresh();}
+#endif
+        ape_escape_ost_scan_local();
+    }
+#if defined(LNG_SDL3) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    ape_escape_ost_poll();
+#endif
+    ImGui::Spacing();ImGui::Separator();ImGui::TextColored(col(th.accent2),"APE ESCAPE ORIGINAL SOUNDTRACK");
+    ImGui::TextWrapped("Search and play tracks from the Archive.org OST item. Only a selected track is downloaded; soundtrack audio is not bundled with app releases.");
+    if(ImGui::Button("Open Archive.org",ImVec2(px(145.0f),px(32.0f)))){
+        if(SDL_OpenURL("https://archive.org/details/ape-escape-1999-ost"))s_ape_ost_status="Opened the Internet Archive item.";
+        else s_ape_ost_status=std::string("Could not open Archive.org: ")+SDL_GetError();
+    }
+    ImGui::SameLine();
+    if(ImGui::Button("Open Zophar source",ImVec2(px(145.0f),px(32.0f)))){
+        if(SDL_OpenURL("https://www.zophar.net/music/playstation-psf/ape-escape"))s_ape_ost_status="Opened Zophar's Domain soundtrack downloads.";
+        else s_ape_ost_status=std::string("Could not open Zophar's Domain: ")+SDL_GetError();
+    }
+#if defined(LNG_SDL3) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+    ImGui::SameLine();if(ImGui::Button("Refresh track list",ImVec2(px(145.0f),px(32.0f))))ape_escape_ost_refresh();
+#else
+    ImGui::SameLine();if(ImGui::Button("Open OST folder",ImVec2(px(130.0f),px(32.0f))))ape_escape_open_folder(ape_escape_ost_music_dir());
+#endif
+    ImGui::SetNextItemWidth(px(280.0f));ImGui::InputText("Search tracks",s_ape_ost_filter,sizeof(s_ape_ost_filter));
+    ImGui::BeginChild("ape_escape_ost_tracks",ImVec2(0,px(190.0f)),true);
+    std::string filter(s_ape_ost_filter);
+    std::transform(filter.begin(),filter.end(),filter.begin(),[](unsigned char c){return static_cast<char>(std::tolower(c));});
+    for(size_t i=0;i<s_ape_ost_tracks.size();++i){
+        const auto&t=s_ape_ost_tracks[i];std::string title=t.title;
+        std::transform(title.begin(),title.end(),title.begin(),[](unsigned char c){return static_cast<char>(std::tolower(c));});
+        if(!filter.empty()&&title.find(filter)==std::string::npos)continue;
+        ImGui::PushID(static_cast<int>(i));
+        const std::string label=(static_cast<int>(i)==s_ape_ost_current?"♪  ":"")+t.title;
+        if(ImGui::Selectable(label.c_str(),static_cast<int>(i)==s_ape_ost_selected))s_ape_ost_selected=static_cast<int>(i);
+        ImGui::PopID();
+    }
+    ImGui::EndChild();
+    if(s_ape_ost_tracks.empty())ImGui::TextDisabled("Track list empty. Connect to the internet and refresh.");
+    else{
+        if(ImGui::Button("Play selected",ImVec2(px(125.0f),px(32.0f))))ape_escape_ost_play_selected();
+        ImGui::SameLine();
+        if(ImGui::Button("Previous",ImVec2(px(84.0f),px(32.0f)))){
+            const int base=s_ape_ost_current>=0?s_ape_ost_current:s_ape_ost_selected;
+            s_ape_ost_selected=base<=0?static_cast<int>(s_ape_ost_tracks.size())-1:base-1;ape_escape_ost_play_selected();
+        }
+        ImGui::SameLine();
+        if(ImGui::Button(ape_escape_audio_is_paused()?"Resume":"Pause",ImVec2(px(80.0f),px(32.0f)))){
+            if(ape_escape_audio_is_paused())ape_escape_audio_resume();else ape_escape_audio_pause();
+        }
+        ImGui::SameLine();
+        if(ImGui::Button("Stop",ImVec2(px(60.0f),px(32.0f)))){ape_escape_audio_stop();s_ape_ost_status="Playback stopped.";}
+        ImGui::SameLine();
+        if(ImGui::Button("Next",ImVec2(px(62.0f),px(32.0f)))){
+            const int base=s_ape_ost_current>=0?s_ape_ost_current:s_ape_ost_selected;
+            s_ape_ost_selected=(base+1)%static_cast<int>(s_ape_ost_tracks.size());ape_escape_ost_play_selected();
+        }
+        const float duration=ape_escape_audio_duration();
+        if(ape_escape_audio_has_track()&&duration>0){
+            float pos=std::max(0.0f,std::min(duration,ape_escape_audio_position()));ImGui::SetNextItemWidth(-1.0f);
+            if(ImGui::SliderFloat("Position",&pos,0.0f,duration,"%.0f sec"))ape_escape_audio_seek(pos);
+        }
+        float volume=ape_escape_audio_get_volume();ImGui::SetNextItemWidth(px(260.0f));
+        if(ImGui::SliderFloat("OST volume",&volume,0.0f,1.0f,"%.0f%%")){ape_escape_audio_set_volume(volume);ape_escape_ost_save_volume();}
+    }
+    if(!s_ape_ost_status.empty())ImGui::TextWrapped("%s",s_ape_ost_status.c_str());
+    ImGui::TextDisabled("Cached tracks and volume setting stay in your user-data folder across updates.");
+}
+static void ape_escape_draw_ost_player_settings(const LauncherTheme& th){ // APE_ESCAPE_OST_PLAYER_SETTINGS
+    ape_escape_ost_draw(th);
+}
+#else
+static void ape_escape_draw_ost_player_settings(const LauncherTheme&) {}
+#endif

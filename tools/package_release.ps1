@@ -187,6 +187,7 @@ if (Test-Path (Join-Path $Root "LICENSE"))           { Copy-Item (Join-Path $Roo
 $UpdateDir = Join-Path $Stage 'update'
 New-Item -ItemType Directory -Force $UpdateDir | Out-Null
 Copy-Item (Join-Path $Root 'tools/in_app_updater.py') (Join-Path $UpdateDir 'updater.py')
+Copy-Item (Join-Path $Root 'tools/ape_escape_ost.py') (Join-Path $UpdateDir 'ape_escape_ost.py')
 # Bundle CA roots for the standalone Python used by the in-app updater. The
 # updater still verifies both the certificate chain and hostname on every request.
 $UpdaterCaBundle = Join-Path $UpdateDir 'cacert.pem'

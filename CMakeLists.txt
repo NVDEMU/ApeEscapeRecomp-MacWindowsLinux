@@ -121,6 +121,39 @@ psxrecomp_add_runtime_target(psx-runtime
     PRELOADED_MODS_DIR "${APE_PRELOADED_MODS}"
 )
 
+
+# Settings OST player playback (native desktop only; browser/Android remain unchanged).
+# Only the decoder is fetched at build time. Actual soundtrack tracks are downloaded
+# individually at runtime and kept in the user's writable data folder.
+if(NOT EMSCRIPTEN AND NOT ANDROID)
+    include(FetchContent)
+    FetchContent_Declare(ape_escape_miniaudio
+        URL https://github.com/mackron/miniaudio/archive/refs/tags/0.11.22.tar.gz
+    )
+    FetchContent_GetProperties(ape_escape_miniaudio)
+    if(NOT ape_escape_miniaudio_POPULATED)
+        FetchContent_Populate(ape_escape_miniaudio)
+    endif()
+    target_sources(psx-runtime PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/tools/ape_escape_audio_backend.cpp")
+    target_include_directories(psx-runtime PRIVATE "${ape_escape_miniaudio_SOURCE_DIR}")
+    if(WIN32 OR MINGW)
+        target_link_libraries(psx-runtime PRIVATE ole32 avrt winmm)
+    elseif(APPLE)
+        target_link_libraries(psx-runtime PRIVATE
+            "-framework CoreAudio" "-framework AudioToolbox" "-framework CoreFoundation")
+    else()
+        find_package(Threads REQUIRED)
+        target_link_libraries(psx-runtime PRIVATE Threads::Threads ${CMAKE_DL_LIBS} m)
+    endif()
+    add_custom_command(TARGET psx-runtime POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E make_directory "$<TARGET_FILE_DIR:psx-runtime>/update"
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/ape_escape_ost.py"
+            "$<TARGET_FILE_DIR:psx-runtime>/update/ape_escape_ost.py"
+        VERBATIM
+    )
+endif()
+
 if(BUILD_TESTING)
     add_executable(ape_stick_response_test
         tests/test_stick_response.c

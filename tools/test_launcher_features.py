@@ -17,6 +17,7 @@ required_views = (
     "ape_escape_draw_stage_guide",
     "ape_escape_draw_mod_toolkit",
     "ape_escape_draw_save_protection_center",
+    "ape_escape_draw_ost_player_settings",
     "APE_ESCAPE_EXTRA_LAUNCHER_BODY",
 )
 for token in required_views:
@@ -58,6 +59,13 @@ for token in (
     "APE_ESCAPE_NEW_FEATURES_HELPER",
     "APE_ESCAPE_WINDOWS_PATH_SEPARATOR_FIX",
     "static_cast<char>(std::filesystem::path::preferred_separator)",
+    "APE_ESCAPE_OST_PLAYER",
+    "ape_escape_audio_play",
+    "ape_escape_ost_download",
+    "archive.org/details/ape-escape-1999-ost",
+    "SDL_CreateProcess",
+    "ape_escape_audio_seek",
+    "ost-player",
 ):
     if token not in helper:
         raise SystemExit(f"launcher helper is missing: {token}")
@@ -118,4 +126,4 @@ for token in (
     if token not in patch:
         raise SystemExit(f"Mod Manager patch is missing integration marker: {token}")
 
-print("Launcher feature integration, mod manager controls, save protection, daily challenge, stage guide, and plugin toolkit checks passed.")
+print("Launcher feature integration, OST player, mod manager controls, save protection, daily challenge, stage guide, and plugin toolkit checks passed.")

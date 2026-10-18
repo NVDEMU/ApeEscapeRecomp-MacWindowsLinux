@@ -334,6 +334,13 @@ psx_add_overlay_toolchain --stage "$payload" \
 cp "$player_toml" "$payload/game.toml"
 cp "$root/packaging/release/input.ini"      "$payload/input.ini"
 cp "$root/packaging/release/START_HERE.txt" "$payload/START_HERE.txt"
+# SDL_GetBasePath() points at usr/bin inside the AppImage; place the helper beside it.
+mkdir -p "$appdir/usr/bin/update"
+install -m 0644 "$root/tools/ape_escape_ost.py" "$appdir/usr/bin/update/ape_escape_ost.py"
+# Make bundled Python discoverable next to the runtime executable.
+if [ -d "$payload/overlay_toolchain" ] && [ ! -e "$appdir/usr/bin/overlay_toolchain" ]; then
+    ln -s "../share/$PAYLOAD_DIR/overlay_toolchain" "$appdir/usr/bin/overlay_toolchain"
+fi
 cp "$root/LICENSE" "$root/README.md" "$payload/"
 mkdir -p "$payload/docs"
 cp "$root/docs/AOT_OVERLAYS.md" "$payload/docs/"

@@ -214,7 +214,10 @@ INCLUDES = r'''#if defined(_WIN32)
   #include <unistd.h>
 #endif
 #include <cstdio> // APE_ESCAPE_EXTRA_STD_HEADERS
-#include <map>'''
+#include <map>
+#if defined(LNG_SDL3) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+#include <SDL3/SDL_process.h>
+#endif'''
 
 HELPER = r'''
 /* Ape Escape's repo-owned updater. Kept outside the shared launcher model:
@@ -658,6 +661,7 @@ static void ape_escape_draw_accessibility_settings(const LauncherTheme& th) {
 ACCESSIBILITY_INSERT = r'''
     // APE_ESCAPE_SETTINGS_CARD
     ape_escape_draw_accessibility_settings(th);
+    ape_escape_draw_ost_player_settings(th);
 '''
 
 MONKEPEDIA_HELPER = r'''/* APE_ESCAPE_MONKEPEDIA_HELPER: source-backed monkey list and manual caught checklist. */

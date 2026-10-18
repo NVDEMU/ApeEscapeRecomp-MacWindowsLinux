@@ -71,6 +71,7 @@ cp "$ROOT/packaging/macos/START_HERE.txt" "$RESOURCES/START_HERE.txt"
 [ ! -f "$ROOT/framework_pins.txt" ] || cp "$ROOT/framework_pins.txt" "$RESOURCES/framework_pins.txt"
 mkdir -p "$RESOURCES/update"
 cp "$ROOT/tools/in_app_updater.py" "$RESOURCES/update/updater.py"
+cp "$ROOT/tools/ape_escape_ost.py" "$RESOURCES/update/ape_escape_ost.py"
 # The bundled Python interpreter may not have a usable CA store. Ship the
 # current curl/Mozilla CA bundle beside the updater and verify it at build time.
 curl --fail --silent --show-error --location --retry 3 \

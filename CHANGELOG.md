@@ -1,5 +1,7 @@
 # Changelog
 
+- Added a Settings-based OST player with Archive.org track search, on-demand downloads, play/pause, next/previous, seeking, and saved volume. Music files remain in per-user data and are not bundled in releases.
+
 All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded here. Nightly release notes are generated from the **Unreleased** section; tagged releases use the section matching their version.
 
 ## [Unreleased]
