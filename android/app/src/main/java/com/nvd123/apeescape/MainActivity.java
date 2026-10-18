@@ -212,7 +212,10 @@ public final class MainActivity extends Activity {
         }
         if (relativePath.isEmpty()) return;
         File destination = new File(getFilesDir(), relativePath);
-        if (destination.isFile()) return;
+        // game.toml is an APK-managed runtime default. Refresh it on app startup
+        // so an upgrade cannot retain an obsolete renderer/config profile from
+        // an older APK. Player preferences and saves are stored separately.
+        if (destination.isFile() && !relativePath.equals("game.toml")) return;
         File parent = destination.getParentFile();
         if (parent != null && !parent.exists() && !parent.mkdirs()) throw new IOException("Could not create " + parent);
         try (InputStream input = getAssets().open(relativePath);

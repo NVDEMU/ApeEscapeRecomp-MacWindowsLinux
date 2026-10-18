@@ -87,6 +87,35 @@ def patch_runtime_cmake(text: str) -> str:
         text = text.replace(GL_START, ANDROID_GL_LINKAGE, 1)
     return text
 
+RENDERER_FALLBACK_START = """    if (!sdl_renderer) {
+        std::fprintf(stderr, "SDL_CreateRenderer failed: %s\\n", SDL_GetError());
+        return 1;
+    }"""
+
+ANDROID_RENDERER_FALLBACK = """    /* APE_ANDROID_SOFTWARE_PRESENT_FALLBACK */
+#if defined(__ANDROID__)
+    if (!sdl_renderer) {
+        const char* ape_accelerated_error = SDL_GetError();
+        std::fprintf(stderr,
+                     "psxrecomp: SDL accelerated presentation failed: %s; trying software renderer\\n",
+                     ape_accelerated_error ? ape_accelerated_error : "unknown error");
+        sdl_renderer = SDL_CreateRenderer(sdl_window, -1, SDL_RENDERER_SOFTWARE);
+        if (sdl_renderer) {
+            std::fprintf(stderr, "psxrecomp: using Android SDL software-present fallback\\n");
+        }
+    }
+#endif
+""" + RENDERER_FALLBACK_START
+
+def patch_android_renderer_fallback(text: str) -> str:
+    if "APE_ANDROID_SOFTWARE_PRESENT_FALLBACK" in text:
+        return text
+    if text.count(RENDERER_FALLBACK_START) != 1:
+        raise ValueError(
+            "Expected one known SDL_CreateRenderer failure block; refusing unsafe Android present fallback patch."
+        )
+    return text.replace(RENDERER_FALLBACK_START, ANDROID_RENDERER_FALLBACK, 1)
+
 def patch_main_cpp(text: str) -> str:
     if "#include <SDL3/SDL_system.h>" not in text:
         if text.count(MAIN_INCLUDE_ANCHOR) != 1:
@@ -115,7 +144,9 @@ def apply(framework_root: Path) -> None:
     gl_text = gl_renderer.read_text(encoding="utf-8-sig")
     fiber_text = fiber_file.read_text(encoding="utf-8-sig")
     runtime_cmake.write_text(patch_runtime_cmake(cmake_text), encoding="utf-8")
-    main_cpp.write_text(patch_main_cpp(main_text), encoding="utf-8")
+    patched_main = patch_main_cpp(main_text)
+    patched_main = patch_android_renderer_fallback(patched_main)
+    main_cpp.write_text(patched_main, encoding="utf-8")
     if "#if defined(__ANDROID__)\n/* APE_ANDROID_SKIP_GL_TEX_READBACK:" not in gl_text:
         if gl_text.count(GL_DUMP_START) != 1:
             raise ValueError("Expected one known GPU GL pass-dump function; refusing unsafe Android GLES compatibility patch.")

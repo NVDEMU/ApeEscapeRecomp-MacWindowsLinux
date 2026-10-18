@@ -23,7 +23,8 @@ def check_patch_is_idempotent() -> None:
         fiber_file = framework / "runtime" / "src" / "psx_fiber.c"
         cmake.write_text(PATCH.RUNTIME_START + "\n" + PATCH.SDL_STATIC_START + "\n" + PATCH.GL_START + "\n", encoding="utf-8")
         main.write_text(
-            '#include "psx_sdl.h"\nint main(int argc, char** argv) {\n  return argc + (argv != nullptr);\n}\n',
+            '#include "psx_sdl.h"\nint main(int argc, char** argv) {\n' +
+            PATCH.RENDERER_FALLBACK_START + '\n  return argc + (argv != nullptr);\n}\n',
             encoding="utf-8",
         )
         gl_renderer.write_text(PATCH.GL_DUMP_START + "\n", encoding="utf-8")
@@ -62,6 +63,10 @@ def check_patch_is_idempotent() -> None:
             raise SystemExit("Android must build SDL3 as the shared library loaded by SDLActivity")
         if "SDL_GetAndroidInternalStoragePath" not in first_main:
             raise SystemExit("Android app-private storage support is missing")
+        if "APE_ANDROID_SOFTWARE_PRESENT_FALLBACK" not in first_main:
+            raise SystemExit("Android SDL software-present fallback is missing")
+        if "SDL_RENDERER_SOFTWARE" not in first_main:
+            raise SystemExit("Android present fallback does not attempt the software renderer")
         if first_main.count("APE_ANDROID_SHARED_STORAGE_ROOT") != 1:
             raise SystemExit("Android storage marker should occur once")
 
@@ -87,6 +92,8 @@ def check_project_scaffolding() -> None:
                 "com" / "nvd123" / "apeescape" / "GameActivity.java").read_text(encoding="utf-8")
     if 'return new String[] { "SDL3", "ApeEscapeRecomp" };' not in activity:
         raise SystemExit("Android SDLActivity library order is not configured")
+    if 'destination.isFile() && !relativePath.equals("game.toml")' not in activity:
+        raise SystemExit("Android must refresh its APK-managed game.toml on updates")
     if '"--game"' not in activity or '"--disc"' not in activity:
         raise SystemExit("Android game launch does not supply config and disc paths")
     gradle = (ROOT / "android" / "app" / "build.gradle").read_text(encoding="utf-8")
