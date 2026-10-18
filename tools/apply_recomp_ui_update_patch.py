@@ -978,44 +978,6 @@ def main() -> int:
     # Preserve the repo-owned Nightly updater integration.
     launcher_text = launcher_path.read_text(encoding="utf-8")
 
-    # MinGW's Windows filesystem implementation defines preferred_separator as
-    # wchar_t, while the launcher safety checks operate on std::string paths.
-    # Narrow this ASCII separator anywhere the pinned launcher uses it so both
-    # source/destination prefixes compile with MinGW.
-    windows_path_separator_marker = "APE_ESCAPE_WINDOWS_PATH_SEPARATOR_FIX"
-    windows_path_separator_source = "std::filesystem::path::preferred_separator"
-    windows_path_separator_fixed = (
-        "static_cast<char>(std::filesystem::path::preferred_separator)"
-    )
-    windows_path_separator_statement = (
-        "source_normalized + " + windows_path_separator_fixed + ";"
-    )
-    if windows_path_separator_marker not in launcher_text:
-        if args.check:
-            return fail("Windows filesystem path-separator compatibility patch has not been applied.", 1)
-        if windows_path_separator_source not in launcher_text:
-            found = [
-                line.strip() for line in launcher_text.splitlines()
-                if "preferred_separator" in line or "source_normalized" in line
-            ]
-            return fail(
-                "Pinned launcher no longer matches the Windows path-separator patch anchor. "
-                f"Relevant lines: {found!r}"
-            )
-        launcher_text = launcher_text.replace(
-            windows_path_separator_source, windows_path_separator_fixed
-        )
-        if windows_path_separator_statement not in launcher_text:
-            return fail("Could not verify the normalized source path separator after patching.")
-        launcher_text = launcher_text.replace(
-            windows_path_separator_statement,
-            windows_path_separator_statement + " /* " + windows_path_separator_marker + " */",
-            1,
-        )
-    elif (windows_path_separator_fixed not in launcher_text or
-          windows_path_separator_marker not in launcher_text):
-        return fail("Windows path-separator marker exists but its compatibility cast is missing.", 3)
-
     if MARKER not in launcher_text:
         if args.check:
             return fail("recomp-ui updater action has not been applied.", 1)

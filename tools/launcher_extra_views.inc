@@ -242,7 +242,7 @@ static bool ape_escape_export_save_backup(const std::filesystem::path& snapshot,
     const std::string source_normalized = snapshot.lexically_normal().string();
     const std::string target_normalized = target.lexically_normal().string();
     const std::string source_prefix =
-        source_normalized + std::filesystem::path::preferred_separator;
+        source_normalized + static_cast<char>(std::filesystem::path::preferred_separator); /* APE_ESCAPE_WINDOWS_PATH_SEPARATOR_FIX */
     if (target_normalized == source_normalized ||
         target_normalized.rfind(source_prefix, 0) == 0)
         return false;  // Never try to copy a backup into itself.

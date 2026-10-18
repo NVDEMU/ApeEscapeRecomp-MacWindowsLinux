@@ -25,9 +25,6 @@ for token in required_views:
 if "EXTRA_HELPERS_PATH = Path(\"tools/launcher_extra_views.inc\")" not in patch:
     raise SystemExit("launcher patch does not load the project-owned feature source")
 
-if ("APE_ESCAPE_WINDOWS_PATH_SEPARATOR_FIX" not in patch or
-        "static_cast<char>(std::filesystem::path::preferred_separator)" not in patch):
-    raise SystemExit("launcher patch does not handle MinGW's wide filesystem path separator")
 for token in (
     "ape_escape_draw_save_protection_center(m, th, quick_button_w, quick_gap);",
     "ape_escape_draw_setup_doctor(m, th);",
@@ -59,6 +56,8 @@ for token in (
     "SDL_RumbleGamepad(gamepad",
     "SDL_GAMEPAD_BUTTON_DPAD_RIGHT",
     "APE_ESCAPE_NEW_FEATURES_HELPER",
+    "APE_ESCAPE_WINDOWS_PATH_SEPARATOR_FIX",
+    "static_cast<char>(std::filesystem::path::preferred_separator)",
 ):
     if token not in helper:
         raise SystemExit(f"launcher helper is missing: {token}")
