@@ -1397,12 +1397,12 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
             return fail("The OST player entry is not present inside the Audio settings card.", 1)
         # Migrate old patch output if this workspace was already patched by the
         # previous release workflow version.
-        launcher_text = launcher_text.replace("    ape_escape_draw_ost_player_settings(th);\\n", "", 1)
+        launcher_text = launcher_text.replace("    ape_escape_draw_ost_player_settings(th);\n", "", 1)
         if launcher_text.count(AUDIO_SETTINGS_ANCHOR) != 1:
             return fail("Pinned launcher no longer matches the guarded Audio settings anchor.")
         audio_entry = (
-            AUDIO_SETTINGS_ANCHOR + "\\n    // " + OST_SETTINGS_ENTRY_MARKER +
-            "\\n    ape_escape_draw_ost_player_settings(th);"
+            AUDIO_SETTINGS_ANCHOR + "\n    // " + OST_SETTINGS_ENTRY_MARKER +
+            "\n    ape_escape_draw_ost_player_settings(th);"
         )
         launcher_text = launcher_text.replace(AUDIO_SETTINGS_ANCHOR, audio_entry, 1)
     elif "ape_escape_draw_ost_player_settings(th);" not in launcher_text:
