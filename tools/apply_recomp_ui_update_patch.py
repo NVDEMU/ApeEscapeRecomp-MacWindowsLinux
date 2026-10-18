@@ -16,6 +16,8 @@ INCLUDE_ANCHOR = '#include "launcher_sdlcompat.h"   // pulls the right SDL heade
 DRAW_ANCHOR = "void draw_dashboard(LauncherModel* m, const LauncherTheme& th, int logical_w) {"
 END_ANCHOR = "\n}\n\n// Trim a path from the LEFT"
 MARKER = "launch_nvd123_nightly_updater"
+BROKEN_SDL3_GUARD = "#if defined(LNG_SDL3 && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)"
+FIXED_SDL3_GUARD = "#if defined(LNG_SDL3) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)"
 THEME_HEADER = Path("src/common/launcher_theme.h")
 PROFILE_HEADER = Path("src/consoles/psx/psx_profile.h")
 MODEL_HEADER = Path("src/common/launcher_model.h")
@@ -982,6 +984,17 @@ def main() -> int:
 
     # Preserve the repo-owned Nightly updater integration.
     launcher_text = launcher_path.read_text(encoding="utf-8")
+
+    # The pinned launcher revision contains a malformed defined(LNG_SDL3 guard,
+    # which prevents every native desktop target from compiling. Repair the
+    # exact known typo deterministically before applying project-owned patches.
+    if BROKEN_SDL3_GUARD in launcher_text:
+        if args.check:
+            return fail("Pinned launcher still contains the malformed SDL3 preprocessor guard.", 1)
+        launcher_text = launcher_text.replace(BROKEN_SDL3_GUARD, FIXED_SDL3_GUARD)
+
+    if BROKEN_SDL3_GUARD in launcher_text:
+        return fail("Malformed SDL3 preprocessor guard remains after normalization.", 1)
 
     if MARKER not in launcher_text:
         if args.check:
