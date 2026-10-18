@@ -130,3 +130,5 @@ The original-disc image used by CI is stored outside the public repository. The 
 This is an unofficial community project maintained by **nvd123 / NVDEMU**. It uses the [PSXRecomp framework](https://github.com/mstan/psxrecomp) and other open-source components; their existing licenses and attribution notices continue to apply. Contributor credits specific to individual mods remain in their manifests.
 
 Ape Escape, its characters, original game code, music, graphics and related intellectual property belong to their respective rights holders, including Sony. This project is not endorsed by or affiliated with Sony Interactive Entertainment. You are responsible for sourcing and using game data and BIOS files lawfully. Do not upload copyrighted game images or retail BIOS files to public issues or pull requests.
+![Downloads](https://shields.io)
+
