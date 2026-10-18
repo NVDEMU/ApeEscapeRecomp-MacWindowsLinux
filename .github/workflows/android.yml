@@ -5,6 +5,7 @@ on:
     branches: [master]
     paths:
       - '.github/workflows/android.yml'
+      - 'packaging/release/VERSION'
       - 'android/**'
       - 'CMakeLists.txt'
       - 'game.toml'
@@ -16,6 +17,7 @@ on:
   pull_request:
     paths:
       - '.github/workflows/android.yml'
+      - 'packaging/release/VERSION'
       - 'android/**'
       - 'CMakeLists.txt'
       - 'game.toml'

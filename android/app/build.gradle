@@ -3,6 +3,25 @@ plugins {
 }
 
 def repoRoot = rootProject.projectDir.parentFile
+
+// One canonical version for desktop packaging, updater metadata, and Android.
+// Update packaging/release/VERSION once per release; Android versionCode is
+// derived from MAJOR.MINOR.PATCH so installs can be upgraded monotonically.
+def appVersionFile = new File(repoRoot, 'packaging/release/VERSION')
+if (!appVersionFile.isFile()) {
+    throw new GradleException("Missing canonical app version: ${appVersionFile}")
+}
+def appVersion = appVersionFile.getText('UTF-8').trim().replaceFirst(/^v/, '')
+def versionParts = appVersion.tokenize('.')
+if (versionParts.size() != 3 || !versionParts.every { part -> part ==~ /\d+/ }) {
+    throw new GradleException("Expected app version vMAJOR.MINOR.PATCH in packaging/release/VERSION")
+}
+def versionNumbers = versionParts.collect { part -> part.toInteger() }
+if (versionNumbers[0] > 2099 || versionNumbers[1] > 999 || versionNumbers[2] > 999) {
+    throw new GradleException("App version is outside the Android versionCode mapping range")
+}
+def appVersionCode = versionNumbers[0] * 1000000 +
+                     versionNumbers[1] * 1000 + versionNumbers[2]
 def stagedAssetsDir = layout.buildDirectory.dir('generated/apeEscapeAssets')
 def sdlJavaDir = layout.buildDirectory.dir('generated/sdl3-java')
 def sdlVersion = '3.4.10'
@@ -103,12 +122,13 @@ android {
         applicationId 'com.nvd123.apeescape'
         minSdk 23
         targetSdk 35
-        versionCode 1
-        versionName '0.1.0-android'
+        versionCode appVersionCode
+        versionName appVersion
         ndk { abiFilters 'arm64-v8a' }
         externalNativeBuild {
             cmake {
-                arguments '-DPSX_RECOMP_UI=OFF',
+                arguments "-DPSX_GAME_VERSION=${appVersion}",
+                          '-DPSX_RECOMP_UI=OFF',
                           '-DPSX_DEBUG_TOOLS=OFF',
                           '-DPSX_ENABLE_VULKAN=OFF',
                           '-DPSX_NETPLAY=OFF',

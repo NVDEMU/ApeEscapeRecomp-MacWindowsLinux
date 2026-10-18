@@ -65,6 +65,10 @@ def check_patch_is_idempotent() -> None:
         if first_main.count("APE_ANDROID_SHARED_STORAGE_ROOT") != 1:
             raise SystemExit("Android storage marker should occur once")
 
+def android_workflow_version_trigger_count() -> int:
+    workflow = (ROOT / ".github" / "workflows" / "android.yml").read_text(encoding="utf-8")
+    return workflow.count("      - 'packaging/release/VERSION'")
+
 def check_project_scaffolding() -> None:
     required = [
         ROOT / "android" / "settings.gradle",
@@ -86,6 +90,15 @@ def check_project_scaffolding() -> None:
     if '"--game"' not in activity or '"--disc"' not in activity:
         raise SystemExit("Android game launch does not supply config and disc paths")
     gradle = (ROOT / "android" / "app" / "build.gradle").read_text(encoding="utf-8")
+    if "new File(repoRoot, 'packaging/release/VERSION')" not in gradle:
+        raise SystemExit("Android app version must come from canonical VERSION")
+    for token in ("versionCode appVersionCode", "versionName appVersion",
+                  '"-DPSX_GAME_VERSION=${appVersion}"',
+                  "versionParts.size() != 3"):
+        if token not in gradle:
+            raise SystemExit(f"Android version wiring missing: {token}")
+    if android_workflow_version_trigger_count() != 2:
+        raise SystemExit("Android workflow must rebuild when canonical VERSION changes")
     if "sdlResDir" in gradle or "res.srcDir(sdlResDir)" in gradle:
         raise SystemExit("SDL template resources must not be merged with the app's custom resources")
     if "java.srcDir(sdlJavaDir)" not in gradle:
