@@ -63,7 +63,7 @@ if "skip_save_protection" not in helper:
     raise SystemExit("backup creation does not exclude its own backup directory")
 if "std::max(5, std::min(50, value))" not in helper or "s_ape_save_backup_retention" not in helper:
     raise SystemExit("backup history does not expose a bounded configurable retention limit")
-if "does not delete files" not in helper:
+if "files not present in the snapshot are not deleted" not in helper:
     raise SystemExit("save restore safety behavior is not described")
 
 for token in (
