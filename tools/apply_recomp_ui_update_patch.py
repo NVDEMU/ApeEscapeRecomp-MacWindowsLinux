@@ -977,6 +977,29 @@ def main() -> int:
 
     # Preserve the repo-owned Nightly updater integration.
     launcher_text = launcher_path.read_text(encoding="utf-8")
+
+    # MinGW's Windows filesystem implementation defines preferred_separator as
+    # wchar_t, while source_normalized is std::string. Explicitly narrow this
+    # ASCII path separator so this safety check compiles on Windows as well.
+    windows_path_separator_marker = "APE_ESCAPE_WINDOWS_PATH_SEPARATOR_FIX"
+    windows_path_separator_source = (
+        "source_normalized + std::filesystem::path::preferred_separator;"
+    )
+    windows_path_separator_fixed = (
+        "source_normalized + static_cast<char>(std::filesystem::path::preferred_separator); "
+        "// " + windows_path_separator_marker
+    )
+    if windows_path_separator_marker not in launcher_text:
+        if args.check:
+            return fail("Windows filesystem path-separator compatibility patch has not been applied.", 1)
+        if launcher_text.count(windows_path_separator_source) != 1:
+            return fail("Pinned launcher no longer matches the Windows path-separator patch anchor.")
+        launcher_text = launcher_text.replace(
+            windows_path_separator_source, windows_path_separator_fixed, 1
+        )
+    elif windows_path_separator_fixed not in launcher_text:
+        return fail("Windows path-separator marker exists but its compatibility cast is missing.", 3)
+
     if MARKER not in launcher_text:
         if args.check:
             return fail("recomp-ui updater action has not been applied.", 1)
