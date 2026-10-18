@@ -37,7 +37,7 @@ for token in (
 if patch.count("const auto safety_snapshot = ape_escape_create_save_backup();") != 2:
     raise SystemExit("updater and rollback must each create a safety snapshot before launch")
 button_start = patch.index("BUTTON = r'''")
-button_end = patch.index("\\n'''", button_start)
+button_end = patch.index("'''", button_start + len("BUTTON = r'''"))
 updater_button_source = patch[button_start:button_end]
 updater_button_count = updater_button_source.count('ImGui::Button("Check for Nightly Updates"') + helper.count('ImGui::Button("Check for Nightly Updates"')
 if updater_button_count != 1:
