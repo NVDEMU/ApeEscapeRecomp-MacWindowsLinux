@@ -23,6 +23,15 @@ required_views = (
 for token in required_views:
     if token not in patch:
         raise SystemExit(f"launcher patch is missing integration marker: {token}")
+if "AUDIO_SETTINGS_ANCHOR" not in patch or "OST_SETTINGS_ENTRY_MARKER" not in patch:
+    raise SystemExit("OST player is not wired into the Audio settings card")
+accessibility_block = patch[patch.index("ACCESSIBILITY_INSERT = r'''"):patch.index("'''", patch.index("ACCESSIBILITY_INSERT = r'''") + len("ACCESSIBILITY_INSERT = r'''"))]
+if "ape_escape_draw_ost_player_settings(th);" in accessibility_block:
+    raise SystemExit("OST button must not be appended to the bottom of the Settings layout")
+if "ape_escape_draw_ost_player_window(th);" not in accessibility_block:
+    raise SystemExit("OST player window is not drawn while the Settings view is open")
+if "ImGui::Button(\"Open OST Player\"" not in helper or 'ImGui::Begin("Ape Escape OST Player"' not in helper:
+    raise SystemExit("OST player needs a visible Audio-card entry button and standalone player window")
 if "EXTRA_HELPERS_PATH = Path(\"tools/launcher_extra_views.inc\")" not in patch:
     raise SystemExit("launcher patch does not load the project-owned feature source")
 

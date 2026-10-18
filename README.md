@@ -72,6 +72,7 @@ The launcher keeps the usual configuration controls alongside this project's opt
 - **Mod Manager tools** — search mods, filter by enabled/disabled/experimental/needs-attention status, and apply confirmed Original Experience, Visual Enhancements, or Challenge Run presets. Enable All and Disable All require confirmation.
 - **Setup Doctor** — check the selected disc, BIOS path, application-data write access, and save-backup status; copy a diagnostic report and jump to repair actions.
 - **Controller Test Lab** — inspect connected gamepad buttons, sticks, and triggers, with an optional rumble test.
+- **Ape Escape OST Player** — open **Settings → Audio → Open OST Player** to search the Archive.org soundtrack listing, download only the selected track, and play/pause, skip, seek, or set saved volume. Tracks are cached in the per-user data folder and are not bundled into releases.
 - **Update & Release Center** — display installed build metadata, launch the Nightly updater, open release downloads, and access the changelog.
 - **Mod Developer Toolkit** — a launcher page with a copyable read-only native plugin template and a link to the [developer guide](docs/MOD_DEVELOPER_TOOLKIT.md). CI checks the example plugin and launcher integration.
 

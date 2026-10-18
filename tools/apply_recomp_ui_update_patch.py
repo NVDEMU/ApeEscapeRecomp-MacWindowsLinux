@@ -361,6 +361,8 @@ QUICK_TOOLS_MARKER = "APE_ESCAPE_QUICK_TOOLS"
 ACCESS_THEME_MARKER = "APE_ESCAPE_ACCESS_THEME_FRAME_LOOP"
 DRAW_UI_ANCHOR = "void draw_ui(LauncherModel* m, const LauncherTheme& th, int logical_w, int logical_h) {"
 SETTINGS_ANCHOR = '    if (hotkeys_p && !stacked_hotkeys) hotkeys_p->draw(m, &th);\n}'
+AUDIO_SETTINGS_ANCHOR = 'void draw_audio_controls(LauncherModel* m, const LauncherTheme& th) {\n    eyebrow("AUDIO");'
+OST_SETTINGS_ENTRY_MARKER = "APE_ESCAPE_OST_PLAYER_SETTINGS_ENTRY"
 RUNTIME_KEYBOARD = Path("psxrecomp-v4/runtime/src/psx_keybinds.c")
 UI_KEYBOARD = Path("src/consoles/psx/psx_binds.c")
 KEYBOARD_MARKER = "APE_ESCAPE_CUSTOM_KEYBOARD_DEFAULTS"
@@ -664,7 +666,8 @@ static void ape_escape_draw_accessibility_settings(const LauncherTheme& th) {
 ACCESSIBILITY_INSERT = r'''
     // APE_ESCAPE_SETTINGS_CARD
     ape_escape_draw_accessibility_settings(th);
-    ape_escape_draw_ost_player_settings(th);
+    // The player itself is an independent window; this call keeps it drawable while Settings is open.
+    ape_escape_draw_ost_player_window(th);
 '''
 
 MONKEPEDIA_HELPER = r'''/* APE_ESCAPE_MONKEPEDIA_HELPER: source-backed monkey list and manual caught checklist. */
@@ -1385,6 +1388,25 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
         if launcher_text.count(SETTINGS_ANCHOR) != 1:
             return fail("Pinned launcher settings no longer match the guarded accessibility card anchor.")
         launcher_text = launcher_text.replace(SETTINGS_ANCHOR, ACCESSIBILITY_INSERT + SETTINGS_ANCHOR, 1)
+
+    # Put a small OST launcher button in the visible Audio settings card. The full
+    # player lives in a separate resizable window, not after the entire Settings
+    # layout where it can fall outside the visible content area.
+    if OST_SETTINGS_ENTRY_MARKER not in launcher_text:
+        if args.check:
+            return fail("The OST player entry is not present inside the Audio settings card.", 1)
+        # Migrate old patch output if this workspace was already patched by the
+        # previous release workflow version.
+        launcher_text = launcher_text.replace("    ape_escape_draw_ost_player_settings(th);\\n", "", 1)
+        if launcher_text.count(AUDIO_SETTINGS_ANCHOR) != 1:
+            return fail("Pinned launcher no longer matches the guarded Audio settings anchor.")
+        audio_entry = (
+            AUDIO_SETTINGS_ANCHOR + "\\n    // " + OST_SETTINGS_ENTRY_MARKER +
+            "\\n    ape_escape_draw_ost_player_settings(th);"
+        )
+        launcher_text = launcher_text.replace(AUDIO_SETTINGS_ANCHOR, audio_entry, 1)
+    elif "ape_escape_draw_ost_player_settings(th);" not in launcher_text:
+        return fail("OST Audio entry marker exists but the entry button call is missing.", 1)
 
     # Keep quick folder actions and the release shortcut on the dashboard.
     if QUICK_TOOLS_MARKER not in launcher_text:
