@@ -994,7 +994,14 @@ def main() -> int:
         if args.check:
             return fail("Windows filesystem path-separator compatibility patch has not been applied.", 1)
         if windows_path_separator_source not in launcher_text:
-            return fail("Pinned launcher no longer matches the Windows path-separator patch anchor.")
+            found = [
+                line.strip() for line in launcher_text.splitlines()
+                if "preferred_separator" in line or "source_normalized" in line
+            ]
+            return fail(
+                "Pinned launcher no longer matches the Windows path-separator patch anchor. "
+                f"Relevant lines: {found!r}"
+            )
         launcher_text = launcher_text.replace(
             windows_path_separator_source, windows_path_separator_fixed
         )
