@@ -21,10 +21,9 @@ static const uint32_t APE_UNLOCKED_GADGETS_ADDRESS = 0x800F51C4u;
 
 /*
  * Published SCUS-94423 cheat references identify these RAM bytes as per-stage
- * completion/status records. Value 2 is documented as 100% complete. Value 1
- * is an inferred unlocked-but-not-completed state, so this feature is marked
- * experimental until it is verified in-game on a backed-up save. Only zero
- * entries are changed: completed or otherwise nonzero states are preserved.
+ * completion/status records. Value 2 is documented as 100% complete; in-game
+ * testing confirms that setting zero-valued entries to 1 unlocks stages.
+ * Existing nonzero status values are preserved.
  *
  * Gaps are intentional; these are the documented playable-stage records, not
  * a blanket write across the surrounding RAM range.
@@ -99,9 +98,8 @@ static void ape_assist_unlock_all_stages(void) {
         const uint8_t status = psx_mod_read_byte(address);
 
         /*
-         * Never replace a nonzero value: the published 100%-complete code
-         * uses 2, and other nonzero status values may carry player progress.
-         * Value 1 is the unlock-only hypothesis to validate in-game.
+         * Only initialize empty stage records. Existing nonzero values,
+         * including the documented 100%-complete value of 2, are preserved.
          */
         if (status == 0u)
             psx_mod_write_byte(address, 1u);

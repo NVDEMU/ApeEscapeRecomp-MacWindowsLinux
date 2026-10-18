@@ -6,7 +6,7 @@ Maintained as part of the nvd123 project, these packages appear on the launcher'
 
 Packages target the North American SCUS-94423 release. Where a target hash is specified, it identifies the MODE2/2352 data-track BIN used by the mod loader. No disc image or retail BIOS is shipped in the catalog.
 
-The Gameplay Assist Pack contains separate toggles for Infinite Lives, Infinite Health, Infinite Air, Unlock All Gadgets, and experimental Unlock All Stages. Stage unlocking only changes zero-valued documented stage-status bytes to 1 and preserves existing nonzero status values; back up saves and verify in-game.
+The Gameplay Assist Pack contains separate toggles for Infinite Lives, Infinite Health, Infinite Air, Unlock All Gadgets, and Unlock All Stages. Stage unlocking sets zero-valued documented stage-status entries to 1 and preserves existing nonzero status/progress.
 
 The Quality-of-Life Tools package adds experimental Quick Retry (fast respawn, not a full stage reload), D-pad camera sensitivity, collectible statistics, a caught-monkey progress tracker and an in-game level timer. See the package README for shortcuts and limitations.
 

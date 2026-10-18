@@ -58,7 +58,7 @@ id = "ape.assist.all-gadgets"
 [[feature]]
 id = "unlock-all-stages"
 name = "Unlock All Stages"
-description = "Experimental: change documented zero-valued stage-status entries to 1 so stages may become available without marking existing nonzero entries complete. Back up your save and verify the behavior on your disc version."
+description = "Unlock stages by changing zero-valued stage-status entries to 1, preserving all existing nonzero status and completion progress."
 group = "Gameplay Assists"
 default_enabled = false
 

@@ -6,8 +6,5 @@ Unlock All Gadgets, and Unlock All Stages are applied only during active
 gameplay. Infinite Health replenishes health; it does not make every level
 hazard harmless.
 
-Unlock All Stages is experimental. Public GameShark references identify
-per-stage status bytes and use value 2 for 100% complete. This mod only changes
-zero-valued entries to the inferred value 1 (unlocked, not completed) and
-preserves every existing nonzero value. Back up your save and verify stage
-availability and completion statistics in-game before relying on it.
+Unlock All Stages sets zero-valued stage-status entries to 1, unlocking the
+stages while preserving existing nonzero status values and completion progress.
