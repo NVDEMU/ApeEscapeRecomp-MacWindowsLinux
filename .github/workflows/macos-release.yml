@@ -641,6 +641,7 @@ jobs:
           }
           Path("dist/nightly-manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
           print("Wrote dist/nightly-manifest.json for", manifest["channel"], manifest["commit"][:12])
+          PY
 
       - name: Render release notes from CHANGELOG.md
         env:

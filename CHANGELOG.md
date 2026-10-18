@@ -23,6 +23,7 @@ All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded h
 
 
 ### Fixed
+- Closed the Nightly manifest generator’s missing Python heredoc terminator, which prevented the release-publishing shell step from parsing correctly.
 - Corrected the pinned launcher’s malformed SDL3 preprocessor guard, which had stopped Windows, macOS, and Linux builds before release packaging.
 - Added independent GitHub Actions workflow validation and security auditing with actionlint and zizmor; zizmor findings are advisory while existing workflows are reviewed.
 
