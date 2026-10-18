@@ -21,6 +21,11 @@ All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded h
 - The Mods page follows the active filter when selecting feature/package details and confirms bulk toggles before applying them.
 - Removed the duplicate Nightly updater button from Update & Release Center; the single dedicated updater control prevents conflicting Dear ImGui IDs and accidental double-starts.
 
+
+### Fixed
+- Corrected the pinned launcher’s malformed SDL3 preprocessor guard, which had stopped Windows, macOS, and Linux builds before release packaging.
+- Added independent GitHub Actions workflow validation and security auditing with actionlint and zizmor; zizmor findings are advisory while existing workflows are reviewed.
+
 ## [1.0.0] - 2026-10-17
 
 ### Added
