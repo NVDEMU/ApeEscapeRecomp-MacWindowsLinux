@@ -1,0 +1,40 @@
+name: C/C++ Lint
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+    branches: ['**']
+
+permissions:
+  contents: read
+  pull-requests: read
+
+jobs:
+  cpp-linter:
+    name: clang-format (changed lines)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout source
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Lint changed C/C++ lines
+        id: linter
+        uses: cpp-linter/cpp-linter-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          version: '21'
+          style: llvm
+          # Start with formatting checks. Static analysis needs the project's
+          # generated compilation database and dependency include paths.
+          tidy-checks: '-*'
+          lines-changed-only: true
+          ignore: 'generated/**|psxrecomp-v4/**|recomp-ui/**'
+          step-summary: true
+
+      - name: Fail on lint errors
+        if: steps.linter.outputs.checks-failed > 0
+        run: exit 1
