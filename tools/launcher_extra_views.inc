@@ -8,6 +8,9 @@ static std::string s_ape_toolkit_status;
 static std::string s_ape_setup_doctor_status;
 static std::string s_ape_controller_test_status;
 static std::string s_ape_update_center_status;
+/* These helpers are injected before the framework's mod-renderer definitions. */
+static int s_ape_mod_filter = 0;
+static void mod_note_error(LauncherModel* m);
 static std::string s_ape_selected_save_backup;
 static int s_ape_save_backup_retention = 20;
 static bool s_ape_save_backup_retention_loaded = false;
@@ -833,14 +836,16 @@ static void ape_escape_draw_stick_test(const char* id, const char* label,
     const ImVec2 maximum = ImGui::GetItemRectMax();
     const ImVec2 center((minimum.x + maximum.x) * 0.5f, (minimum.y + maximum.y) * 0.5f);
     ImDrawList* draw = ImGui::GetWindowDrawList();
-    draw->AddRect(minimum, maximum, col(th.border), px(5.0f));
-    draw->AddLine(ImVec2(center.x, minimum.y), ImVec2(center.x, maximum.y), col(th.text_muted));
-    draw->AddLine(ImVec2(minimum.x, center.y), ImVec2(maximum.x, center.y), col(th.text_muted));
+    draw->AddRect(minimum, maximum, ImGui::ColorConvertFloat4ToU32(col(th.border)), px(5.0f));
+    draw->AddLine(ImVec2(center.x, minimum.y), ImVec2(center.x, maximum.y),
+                  ImGui::ColorConvertFloat4ToU32(col(th.text_muted)));
+    draw->AddLine(ImVec2(minimum.x, center.y), ImVec2(maximum.x, center.y),
+                  ImGui::ColorConvertFloat4ToU32(col(th.text_muted)));
     const float radius = side * 0.42f;
     const ImVec2 dot(center.x + std::max(-1.0f, std::min(1.0f, x)) * radius,
                      center.y + std::max(-1.0f, std::min(1.0f, y)) * radius);
-    draw->AddCircleFilled(dot, px(6.0f), col(th.accent));
-    draw->AddCircle(dot, px(6.0f), col(th.text));
+    draw->AddCircleFilled(dot, px(6.0f), ImGui::ColorConvertFloat4ToU32(col(th.accent)));
+    draw->AddCircle(dot, px(6.0f), ImGui::ColorConvertFloat4ToU32(col(th.text)));
 }
 
 static void ape_escape_close_test_gamepad() {
@@ -959,12 +964,10 @@ static void ape_escape_draw_controller_test_lab(const LauncherTheme& th) {
     }
 
     if (ImGui::Button("Test Rumble", ImVec2(px(150.0f), px(32.0f)))) {
-        if (!SDL_GamepadHasRumble(gamepad)) {
-            s_ape_controller_test_status = "This controller does not advertise rumble support.";
-        } else if (SDL_RumbleGamepad(gamepad, 0xBFFFu, 0x5FFFu, 450u)) {
+        if (SDL_RumbleGamepad(gamepad, 0xBFFFu, 0x5FFFu, 450u)) {
             s_ape_controller_test_status = "Rumble command sent for 450 ms.";
         } else {
-            s_ape_controller_test_status = std::string("Rumble failed: ") + SDL_GetError();
+            s_ape_controller_test_status = std::string("Rumble unavailable or failed: ") + SDL_GetError();
         }
     }
     if (!s_ape_controller_test_status.empty())

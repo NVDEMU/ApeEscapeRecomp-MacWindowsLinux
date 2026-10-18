@@ -49,6 +49,10 @@ for token in (
     "ape_escape_draw_controller_test_lab",
     "ape_escape_draw_update_release_center",
     "ape_escape_draw_mod_manager_overhaul",
+    "static int s_ape_mod_filter = 0;",
+    "static void mod_note_error(LauncherModel* m);",
+    "ImGui::ColorConvertFloat4ToU32(col(th.border))",
+    "SDL_RumbleGamepad(gamepad",
     "SDL_GAMEPAD_BUTTON_DPAD_RIGHT",
     "APE_ESCAPE_NEW_FEATURES_HELPER",
 ):

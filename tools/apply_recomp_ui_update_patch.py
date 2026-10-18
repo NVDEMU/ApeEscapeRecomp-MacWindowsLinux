@@ -1098,7 +1098,6 @@ def main() -> int:
     mod_decl_marker = "APE_ESCAPE_MOD_MANAGER_DECLS"
     mod_decl_anchor = "static bool mod_feature_text_matches("
     mod_declarations = """/* APE_ESCAPE_MOD_MANAGER_DECLS */
-static int s_ape_mod_filter = 0;
 static bool ape_escape_mod_filter_matches(const RecompLauncherCModFeature& feature);
 static bool ape_escape_mod_package_filter_matches(
     const RecompLauncherCModPackage& package,
@@ -1111,8 +1110,7 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
         if launcher_text.count(mod_decl_anchor) != 1:
             return fail("Pinned launcher no longer matches the guarded mod-feature matcher anchor.")
         launcher_text = launcher_text.replace(mod_decl_anchor, mod_declarations + "\n" + mod_decl_anchor, 1)
-    elif ("static int s_ape_mod_filter = 0;" not in launcher_text or
-          "static void ape_escape_draw_mod_manager_overhaul" not in launcher_text):
+    elif ("static void ape_escape_draw_mod_manager_overhaul" not in launcher_text):
         return fail("Mod Manager declaration marker exists, but required declarations are missing.")
 
     # Selection follows the visible result set, including the empty-result case.
