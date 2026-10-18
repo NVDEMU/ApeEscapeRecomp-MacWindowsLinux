@@ -90,9 +90,11 @@ def check_project_scaffolding() -> None:
         raise SystemExit("missing Android scaffolding: " + ", ".join(missing))
     activity = (ROOT / "android" / "app" / "src" / "main" / "java" /
                 "com" / "nvd123" / "apeescape" / "GameActivity.java").read_text(encoding="utf-8")
+    setup_activity = (ROOT / "android" / "app" / "src" / "main" / "java" /
+                      "com" / "nvd123" / "apeescape" / "MainActivity.java").read_text(encoding="utf-8")
     if 'return new String[] { "SDL3", "ApeEscapeRecomp" };' not in activity:
         raise SystemExit("Android SDLActivity library order is not configured")
-    if 'destination.isFile() && !relativePath.equals("game.toml")' not in activity:
+    if 'destination.isFile() && !relativePath.equals("game.toml")' not in setup_activity:
         raise SystemExit("Android must refresh its APK-managed game.toml on updates")
     if '"--game"' not in activity or '"--disc"' not in activity:
         raise SystemExit("Android game launch does not supply config and disc paths")
