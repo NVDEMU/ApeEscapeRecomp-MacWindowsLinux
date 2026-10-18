@@ -214,8 +214,9 @@ INCLUDES = r'''#if defined(_WIN32)
   #include <unistd.h>
 #endif
 #include <cstdio> // APE_ESCAPE_EXTRA_STD_HEADERS
+#include <cmath> // APE_ESCAPE_OST_MATH
 #include <map>
-#if defined(LNG_SDL3) && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
+#if defined(LNG_SDL3 && !defined(__EMSCRIPTEN__) && !defined(__ANDROID__)
 #include <SDL3/SDL_process.h>
 #endif'''
 
