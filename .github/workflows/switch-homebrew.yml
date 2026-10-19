@@ -39,6 +39,8 @@ jobs:
           test -x "$DEVKITPRO/tools/bin/elf2nro"
           echo "DEVKITPRO=$DEVKITPRO" >> "$GITHUB_ENV"
           echo "DEVKITA64=$DEVKITPRO/devkitA64" >> "$GITHUB_ENV"
+          echo "$DEVKITPRO/devkitA64/bin" >> "$GITHUB_PATH"
+          echo "$DEVKITPRO/tools/bin" >> "$GITHUB_PATH"
 
       - name: Install host-side recompiler dependencies
         run: |
