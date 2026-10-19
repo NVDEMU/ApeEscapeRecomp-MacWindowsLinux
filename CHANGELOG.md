@@ -7,7 +7,7 @@ All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded h
 
 ### Added
 - Added a C/C++ lint workflow that checks formatting on changed lines and excludes generated game translations and third-party submodules.
-- Added a Settings-based OST player with Archive.org track search, on-demand downloads, play/pause, next/previous, seeking, and saved volume. Music files remain in per-user data and are not bundled in releases.
+- Added a Settings → Audio OST player with Archive.org track search, on-demand downloads, play/pause, next/previous, seeking, and saved volume. The player expands inline when opened. Music files remain in per-user data and are not bundled in releases.
 - Mod Manager filters for all, enabled, disabled, experimental, and needs-attention features, plus confirmed Original Experience, Visual Enhancements, and Challenge Run presets.
 - Confirmation dialogs for Enable All and Disable All to avoid accidentally changing the whole mod selection.
 - Setup Doctor checks for the selected disc, disc identity, custom BIOS path, app-data write access, and save-backup availability, with a copyable diagnostic report and shortcuts to repair actions.

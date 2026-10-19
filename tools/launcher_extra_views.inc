@@ -1233,17 +1233,22 @@ static void ape_escape_ost_draw(const LauncherTheme& th){
     ImGui::TextDisabled("Cached tracks and volume setting stay in your user-data folder across updates.");
 }
 static void ape_escape_draw_ost_player_settings(const LauncherTheme& th){ // APE_ESCAPE_OST_PLAYER_SETTINGS
-    if(ImGui::Button("Open OST Player",ImVec2(px(170.0f),px(30.0f))))
+    ImGui::Spacing();
+    ImGui::Separator();
+    if(!s_ape_ost_window_open){
+        if(!ImGui::Button("Open OST Player",ImVec2(px(170.0f),px(30.0f)))){
+            ImGui::SameLine();
+            ImGui::TextDisabled("Expand the player here to search and play the original soundtrack.");
+            return;
+        }
+        // Draw the player inline in this Audio page in the same frame as the click.
         s_ape_ost_window_open=true;
-    ImGui::SameLine();
-    ImGui::TextDisabled("Search and play music from the original soundtrack.");
-}
-static void ape_escape_draw_ost_player_window(const LauncherTheme& th){
-    if(!s_ape_ost_window_open)return;
-    ImGui::SetNextWindowSize(ImVec2(px(720.0f),px(620.0f)),ImGuiCond_FirstUseEver);
-    if(ImGui::Begin("Ape Escape OST Player",&s_ape_ost_window_open))
-        ape_escape_ost_draw(th);
-    ImGui::End();
+    }
+    if(ImGui::Button("Close OST Player",ImVec2(px(170.0f),px(30.0f)))){
+        s_ape_ost_window_open=false;
+        return;
+    }
+    ape_escape_ost_draw(th);
 }
 #else
 static void ape_escape_draw_ost_player_settings(const LauncherTheme&) {}

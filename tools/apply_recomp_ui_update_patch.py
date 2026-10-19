@@ -666,8 +666,6 @@ static void ape_escape_draw_accessibility_settings(const LauncherTheme& th) {
 ACCESSIBILITY_INSERT = r'''
     // APE_ESCAPE_SETTINGS_CARD
     ape_escape_draw_accessibility_settings(th);
-    // The player itself is an independent window; this call keeps it drawable while Settings is open.
-    ape_escape_draw_ost_player_window(th);
 '''
 
 MONKEPEDIA_HELPER = r'''/* APE_ESCAPE_MONKEPEDIA_HELPER: source-backed monkey list and manual caught checklist. */

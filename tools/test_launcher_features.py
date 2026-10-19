@@ -28,10 +28,15 @@ if "AUDIO_SETTINGS_ANCHOR" not in patch or "OST_SETTINGS_ENTRY_MARKER" not in pa
 accessibility_block = patch[patch.index("ACCESSIBILITY_INSERT = r'''"):patch.index("'''", patch.index("ACCESSIBILITY_INSERT = r'''") + len("ACCESSIBILITY_INSERT = r'''"))]
 if "ape_escape_draw_ost_player_settings(th);" in accessibility_block:
     raise SystemExit("OST button must not be appended to the bottom of the Settings layout")
-if "ape_escape_draw_ost_player_window(th);" not in accessibility_block:
-    raise SystemExit("OST player window is not drawn while the Settings view is open")
-if "ImGui::Button(\"Open OST Player\"" not in helper or 'ImGui::Begin("Ape Escape OST Player"' not in helper:
-    raise SystemExit("OST player needs a visible Audio-card entry button and standalone player window")
+if "ape_escape_draw_ost_player_window(th);" in accessibility_block:
+    raise SystemExit("OST player must not depend on a separate window drawn elsewhere")
+ost_settings = helper[helper.index("static void ape_escape_draw_ost_player_settings"):helper.index("#else\\nstatic void ape_escape_draw_ost_player_settings")]
+if 'ImGui::Button("Open OST Player"' not in ost_settings or 'ImGui::Button("Close OST Player"' not in ost_settings:
+    raise SystemExit("OST player needs visible inline open/close controls in Audio settings")
+if "ape_escape_ost_draw(th);" not in ost_settings:
+    raise SystemExit("Open OST Player must draw the player inline in the same Audio settings function")
+if 'ImGui::Begin("Ape Escape OST Player"' in helper:
+    raise SystemExit("OST player must not use the previous detached ImGui window")
 if "EXTRA_HELPERS_PATH = Path(\"tools/launcher_extra_views.inc\")" not in patch:
     raise SystemExit("launcher patch does not load the project-owned feature source")
 
