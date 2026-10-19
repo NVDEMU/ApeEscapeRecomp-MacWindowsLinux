@@ -23,6 +23,9 @@ jobs:
     # currently returns HTTP 403 from hosted runners during pacman sync.
     container:
       image: devkitpro/devkita64:20260219
+    defaults:
+      run:
+        shell: bash
     steps:
       - name: Checkout including runtime submodules
         uses: actions/checkout@v4
