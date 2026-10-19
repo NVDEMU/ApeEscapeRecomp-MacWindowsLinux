@@ -36,9 +36,13 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y wget
-          wget -q https://apt.devkitpro.org/install-devkitpro-pacman
-          sudo bash ./install-devkitpro-pacman
-          sudo dkp-pacman -Sy --noconfirm devkitA64 switch-tools switch-sdl2 switch-mesa
+          # apt.devkitpro.org currently rejects wget's default User-Agent (HTTP 403).
+          wget --user-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36" \
+            --output-document=install-devkitpro-pacman \
+            https://apt.devkitpro.org/install-devkitpro-pacman
+          chmod +x ./install-devkitpro-pacman
+          sudo ./install-devkitpro-pacman
+          sudo dkp-pacman -Syu --noconfirm switch-dev
           echo "/opt/devkitpro/devkitA64/bin" >> "$GITHUB_PATH"
           echo "/opt/devkitpro/tools/bin" >> "$GITHUB_PATH"
           echo "DEVKITPRO=/opt/devkitpro" >> "$GITHUB_ENV"
@@ -56,9 +60,9 @@ jobs:
         run: |
           set -o pipefail
           cmake -S . -B build-switch -DCMAKE_BUILD_TYPE=Release \
-            -DCMAKE_TOOLCHAIN_FILE="$DEVKITA64/share/devkitPro/CMake/devkita64.cmake" \
-            -DCMAKE_SYSTEM_NAME=Generic \
-            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DCMAKE_TOOLCHAIN_FILE="$DEVKITPRO/cmake/Switch.cmake" \
+            -DAPE_SWITCH_PORT=ON \
+            -DPSX_SDL_BACKEND=SDL2 \
             -DBUILD_TESTING=OFF \
             -DPSX_RECOMP_UI=OFF 2>&1 | tee switch-configure.log
 
