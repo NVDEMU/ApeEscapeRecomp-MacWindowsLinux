@@ -92,9 +92,33 @@ def main() -> int:
     }"""
         source = replace_exactly_once(source, old_function, new_function, "local-interface enumeration")
 
+    # The native desktop target intentionally links a no-op interpreter.
+    # Switch cannot JIT/dlopen overlays, so enable the framework's real MIPS
+    # interpreter as the safe fallback for overlay code not in generated C.
+    runtime_cmake = args.framework_root / "runtime" / "runtime.cmake"
+    if not runtime_cmake.is_file():
+        print(f"Switch portability patch: source not found: {runtime_cmake}", file=sys.stderr)
+        return 2
+    runtime = runtime_cmake.read_text(encoding="utf-8-sig")
+    interpreter_old = """    if(PSXRT_ORACLE)
+        set(mode_source ${PSXRECOMP_ROOT}/runtime/src/psx_interpreter.c)
+    else()
+        set(mode_source ${PSXRECOMP_ROOT}/runtime/src/stub_interpreter.c)
+    endif()"""
+    interpreter_new = """    if(PSXRT_ORACLE OR PSX_SWITCH_INTERPRETER_FALLBACK)
+        set(mode_source ${PSXRECOMP_ROOT}/runtime/src/psx_interpreter.c)
+    else()
+        set(mode_source ${PSXRECOMP_ROOT}/runtime/src/stub_interpreter.c)
+    endif()"""
+    if interpreter_new not in runtime:
+        runtime = replace_exactly_once(
+            runtime, interpreter_old, interpreter_new, "interpreter source selection"
+        )
+        runtime_cmake.write_text(runtime, encoding="utf-8", newline="\\n")
+
     # libnx's toolchain does not provide POSIX dlopen/dlsym either. On Switch,
-    # use the existing no-dynamic-overlay stubs; static AOT dispatch can replace
-    # the runtime compiler/cache route for a future playable build.
+    # use the existing no-dynamic-overlay stubs. The actual overlay code will
+    # execute through the interpreter selected above.
     overlay_path = args.framework_root / "runtime" / "src" / "overlay_posix.c"
     if not overlay_path.is_file():
         print(f"Switch portability patch: source not found: {overlay_path}", file=sys.stderr)
@@ -109,7 +133,7 @@ def main() -> int:
         overlay_path.write_text(overlay, encoding="utf-8", newline="\n")
 
     source_path.write_text(source, encoding="utf-8", newline="\n")
-    print("Applied Switch network and dynamic-overlay portability patches")
+    print("Applied Switch network, dynamic-overlay, and interpreter-fallback portability patches")
     return 0
 
 
