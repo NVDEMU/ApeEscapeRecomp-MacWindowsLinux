@@ -9,6 +9,8 @@ on:
       - 'generated/**'
       - 'src/**'
       - 'tools/switch/**'
+      - 'tools/apply_switch_network_portability_patch.py'
+      - 'tools/apply_switch_sdcard_patch.py'
       - '.github/workflows/switch-homebrew.yml'
       - 'psxrecomp-v4'
 permissions:
