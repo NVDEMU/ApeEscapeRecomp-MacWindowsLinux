@@ -25,6 +25,25 @@ if(NOT APE_UPDATER_PATCH_RESULT EQUAL 0)
     message(FATAL_ERROR "Could not apply the nvd123 Nightly updater launcher patch.")
 endif()
 
+# Switch/Ryujinx is an experimental cross-build. Enable SDL2 (the available
+# Switch portlib backend) and apply the scoped runtime disc auto-discovery patch
+# only for this opt-in build. The source patch is #ifdef-guarded so ordinary
+# desktop builds remain unchanged even if the submodule checkout is reused.
+option(APE_SWITCH_PORT "Enable experimental Nintendo Switch / Ryujinx port hooks" OFF)
+if(APE_SWITCH_PORT)
+    set(PSX_SDL_BACKEND "SDL2" CACHE STRING "SDL backend for Switch" FORCE)
+    add_compile_definitions(PSX_RYUJINX_SDCARD_SCAN=1)
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tools/apply_switch_sdcard_patch.py"
+                --framework-root "${PSXRECOMP_ROOT}"
+        RESULT_VARIABLE APE_SWITCH_SDCARD_PATCH_RESULT
+    )
+    if(NOT APE_SWITCH_SDCARD_PATCH_RESULT EQUAL 0)
+        message(FATAL_ERROR "Could not apply the experimental Switch/Ryujinx SD-card runtime patch.")
+    endif()
+endif()
+
 # Apply the audited PGXP projection correction to the pinned framework itself.
 # The patch is idempotent, validates the framework pin, and fails closed if its
 # source anchors change, keeping local CMake builds in sync with CI.
@@ -143,7 +162,7 @@ psxrecomp_add_runtime_target(psx-runtime
 )
 
 
-# Settings OST player playback (native desktop only; browser/Android remain unchanged).
+# Settings OST player playback (native desktop only; browser/Android/Switch remain unchanged).
 # Only the decoder is fetched at build time. Actual soundtrack tracks are downloaded
 # individually at runtime and kept in the user's writable data folder.
 if(NOT EMSCRIPTEN AND NOT ANDROID)
