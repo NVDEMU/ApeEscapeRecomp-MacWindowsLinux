@@ -220,7 +220,7 @@ void psx_fiber_destroy(psx_fiber_t fiber)
 #else /* POSIX: ucontext */
 
 #ifndef _XOPEN_SOURCE""";
-    if (fiber_backend not in fiber:
+    if fiber_backend not in fiber:
         fiber = replace_exactly_once(fiber, fiber_anchor, fiber_backend, "ucontext backend insertion")
         fiber_path.write_text(fiber, encoding="utf-8", newline="\n")
 
