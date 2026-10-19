@@ -1,0 +1,96 @@
+name: Switch homebrew (experimental)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [switch-sd-card-probe]
+    paths:
+      - 'CMakeLists.txt'
+      - 'generated/**'
+      - 'src/**'
+      - 'tools/switch/**'
+      - '.github/workflows/switch-homebrew.yml'
+      - 'psxrecomp-v4'
+  pull_request:
+    paths:
+      - 'CMakeLists.txt'
+      - 'generated/**'
+      - 'src/**'
+      - 'tools/switch/**'
+      - '.github/workflows/switch-homebrew.yml'
+      - 'psxrecomp-v4'
+
+permissions:
+  contents: read
+
+jobs:
+  switch-homebrew:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout including runtime submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install devkitPro Switch toolchain
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y wget
+          wget -q https://apt.devkitpro.org/install-devkitpro-pacman
+          sudo bash ./install-devkitpro-pacman
+          sudo dkp-pacman -Sy --noconfirm devkitA64 switch-tools switch-sdl2 switch-mesa
+          echo "/opt/devkitpro/devkitA64/bin" >> "$GITHUB_PATH"
+          echo "/opt/devkitpro/tools/bin" >> "$GITHUB_PATH"
+          echo "DEVKITPRO=/opt/devkitpro" >> "$GITHUB_ENV"
+          echo "DEVKITA64=/opt/devkitpro/devkitA64" >> "$GITHUB_ENV"
+
+      - name: Verify generated game sources and Switch toolchain
+        run: |
+          test -f generated/SCUS_944.23_dispatch.c
+          compgen -G 'generated/SCUS_944.23_full_*.c' >/dev/null || test -f generated/SCUS_944.23_full.c
+          aarch64-none-elf-gcc --version
+          aarch64-none-elf-g++ --version
+
+      - name: Configure full application for Switch
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake -S . -B build-switch -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$DEVKITA64/share/devkitPro/CMake/devkita64.cmake" \
+            -DCMAKE_SYSTEM_NAME=Generic \
+            -DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+            -DBUILD_TESTING=OFF \
+            -DPSX_RECOMP_UI=OFF 2>&1 | tee switch-configure.log
+
+      - name: Compile full application
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build build-switch --parallel 2 2>&1 | tee switch-build.log
+
+      - name: Locate and validate NRO
+        shell: bash
+        run: |
+          set -euo pipefail
+          find build-switch -type f -name '*.nro' -print
+          NRO="$(find build-switch -type f -name '*.nro' -print -quit)"
+          test -n "$NRO"
+          mkdir -p switch-test-package/switch/ApeEscapeRecomp
+          cp "$NRO" switch-test-package/switch/ApeEscapeRecomp/ApeEscapeRecomp.nro
+          cp tools/switch/README.md switch-test-package/README.txt
+          cd switch-test-package
+          zip -r ../ApeEscapeRecomp-Switch-Experimental.zip .
+          cd ..
+          sha256sum "$NRO" ApeEscapeRecomp-Switch-Experimental.zip
+
+      - name: Upload experimental Switch package and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ApeEscapeRecomp-Switch-Experimental
+          path: |
+            ApeEscapeRecomp-Switch-Experimental.zip
+            switch-configure.log
+            switch-build.log
+          if-no-files-found: warn
+          retention-days: 14
