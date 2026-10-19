@@ -14,7 +14,7 @@ import sys
 MARKER = '    // Go straight to the native picker. A preliminary modal was redundant,'
 PATCH_MARKER = '    // Experimental Switch/Ryujinx SD-card fallback (project patch).'
 
-PATCH = '''    // Experimental Switch/Ryujinx SD-card fallback (project patch).
+PATCH = '''#if defined(PSX_RYUJINX_SDCARD_SCAN)\n    // Experimental Switch/Ryujinx SD-card fallback (project patch).
     // The emulator's host-side /sdcard directory is only visible when the
     // runtime actually exposes it; on a Switch-like guest, sdmc:/ is the
     // virtual SD mount. Check both forms, plus the app-relative data folder.
