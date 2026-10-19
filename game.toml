@@ -77,6 +77,11 @@ pgxp_mod_only = true
 pgxp_tolerance = -1.0
 pgxp_position_fallback = false
 pgxp_preserve_projection = true
+# Renderer-side crack correction for PGXP-precise opaque 3D triangles.
+# These OpenGL features have no effect on faithful rendering while the
+# default-off PGXP mod is disabled. "wide" closes high-resolution T-junctions.
+pgxp_depth_buffer = true
+pgxp_seam = "wide"
 
 # Authentic 4:3 is the baseline. Ape Escape's game-specific widescreen modes
 # are selected from the built-in Mods catalog rather than generic Video settings.

@@ -14,7 +14,7 @@ game_id = "SCUS-94423"
 [[feature]]
 id = "pgxp"
 name = "PGXP Precision"
-description = "Experimental high-coverage subpixel geometry and perspective-correct textures. Uses exact projection and dataflow-validated vertex precision; game-specific seams still require visual testing. Turn off for the original PS1 rendering."
+description = "Experimental high-coverage subpixel geometry, perspective-correct textures, and OpenGL crack correction. Precise culling and depth-tested seam expansion are applied when selected; cutscene wobble and all scene-specific artifacts still require visual testing. Turn off for the original PS1 rendering."
 group = "Visual"
 default_enabled = false
 
@@ -23,6 +23,15 @@ feature = "pgxp"
 id = "cpu_mode"
 label = "CPU precision propagation"
 description = "Follow precision through the game's integer vertex calculations."
+type = "boolean"
+default = "true"
+
+[[option]]
+feature = "pgxp"
+id = "culling"
+label = "Precise culling"
+description = "Use PGXP's subpixel positions for polygon culling to reduce terrain gaps. This is an experimental guest-visible change and is disabled automatically for netplay."
+group = "Visual"
 type = "boolean"
 default = "true"
 
