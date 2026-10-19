@@ -36,7 +36,7 @@ jobs:
               https://apt.devkitpro.org/install-devkitpro-pacman
             chmod +x ./install-devkitpro-pacman
             sudo ./install-devkitpro-pacman
-            sudo dkp-pacman -Syu --noconfirm switch-dev
+            sudo dkp-pacman -Syu --noconfirm switch-dev switch-sdl2 switch-mesa
             echo "/opt/devkitpro/devkitA64/bin" >> "$GITHUB_PATH"
             echo "/opt/devkitpro/tools/bin" >> "$GITHUB_PATH"
             echo "DEVKITPRO=/opt/devkitpro" >> "$GITHUB_ENV"
