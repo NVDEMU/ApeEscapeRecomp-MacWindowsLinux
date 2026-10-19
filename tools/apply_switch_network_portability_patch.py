@@ -92,8 +92,24 @@ def main() -> int:
     }"""
         source = replace_exactly_once(source, old_function, new_function, "local-interface enumeration")
 
-    source_path.write_text(source, encoding="utf-8", newline="\n")
-    print("Applied Switch getifaddrs portability patch")
+    # libnx's toolchain does not provide POSIX dlopen/dlsym either. On Switch,
+    # use the existing no-dynamic-overlay stubs; static AOT dispatch can replace
+    # the runtime compiler/cache route for a future playable build.
+    overlay_path = args.framework_root / "runtime" / "src" / "overlay_posix.c"
+    if not overlay_path.is_file():
+        print(f"Switch portability patch: source not found: {overlay_path}", file=sys.stderr)
+        return 2
+    overlay = overlay_path.read_text(encoding="utf-8-sig")
+    overlay_old = "#ifndef _WIN32\\n\\n#include <dirent.h>\\n#include <dlfcn.h>\\n#include <sys/stat.h>"
+    overlay_new = "#if !defined(_WIN32) && !defined(PSX_RYUJINX_SDCARD_SCAN)\\n\\n#include <dirent.h>\\n#include <dlfcn.h>\\n#include <sys/stat.h>"
+    if overlay_new not in overlay:
+        overlay = replace_exactly_once(
+            overlay, overlay_old, overlay_new, "dynamic overlay loader platform block"
+        )
+        overlay_path.write_text(overlay, encoding="utf-8", newline="\\n")
+
+    source_path.write_text(source, encoding="utf-8", newline="\\n")
+    print("Applied Switch network and dynamic-overlay portability patches")
     return 0
 
 
