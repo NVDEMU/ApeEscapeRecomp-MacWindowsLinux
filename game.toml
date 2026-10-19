@@ -34,6 +34,15 @@ memcard_dir = "saves"
 # service the HLE tier doesn't implement. Env PSX_BIOS_HLE overrides at launch.
 bios_hle = true
 
+[timing]
+# Crabby Beach and other crowded gameplay scenes miss the original 30 FPS deadline
+# by a small margin. Scale recompiled CPU instruction charging by 2 while keeping
+# VBlank, timers, CD, SPU and DMA on the original PlayStation clock.
+# Crucially, only phase 3 (active level gameplay) is scaled. Title/attract, stage
+# select, loading, flyovers, warp-ins and door transitions retain normal timing.
+guest_cycle_scale = 2
+guest_cycle_scale_gate = { addr = 0x800F447C, size = 1, value = 3 }
+
 [video]
 # Auto-skip FMVs: when a streaming movie (XA audio + MDEC) is detected, run it
 # uncapped and muted so it blows through in a fraction of a second instead of
