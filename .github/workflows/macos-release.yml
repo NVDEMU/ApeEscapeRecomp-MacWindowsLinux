@@ -360,24 +360,58 @@ jobs:
       - name: Install CHD extraction tools
         shell: powershell
         run: |
-          choco install mame --yes --no-progress
-          if ($LASTEXITCODE -ne 0) { throw "MAME/CHD tools installation failed (exit $LASTEXITCODE)." }
-          $tool = Get-Command chdman.exe -ErrorAction SilentlyContinue
-          if (-not $tool) {
-            $root = if ($env:ChocolateyInstall) { $env:ChocolateyInstall } else { 'C:\ProgramData\chocolatey' }
-            $found = Get-ChildItem -Path (Join-Path $root 'lib') -Filter chdman.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-            if ($found) {
-              $dir = $found.DirectoryName
-              Add-Content -Path $env:GITHUB_PATH -Value $dir
-              Write-Host "Using chdman from $dir"
-            } else {
-              throw 'chdman.exe was not found after installing MAME.'
+          $ErrorActionPreference = 'Stop'
+          # Avoid Chocolatey's community feed for this critical step: it repeatedly
+          # returned HTTP 503 before the Windows build even started. Download the
+          # pinned official MAME release directly from GitHub Releases instead.
+          $version = 'mame0289'
+          $asset = 'mame0289b_x64.exe'
+          $url = "https://github.com/mamedev/mame/releases/download/$version/$asset"
+          $expectedSha256 = 'a1aa7912168c9d1b05e611906bc21b8b9be3935822aead36d12a1da363150b7d'
+          $archive = Join-Path $env:RUNNER_TEMP $asset
+          $extractRoot = Join-Path $env:RUNNER_TEMP 'mame0289-tools'
+          $downloaded = $false
+
+          for ($attempt = 1; $attempt -le 3; $attempt++) {
+            try {
+              Invoke-WebRequest -UseBasicParsing -Uri $url -OutFile $archive
+              $downloaded = $true
+              break
+            } catch {
+              if ($attempt -eq 3) { throw }
+              Write-Warning "Official MAME download attempt $attempt failed: $($_.Exception.Message). Retrying..."
+              Start-Sleep -Seconds (5 * $attempt)
             }
-          } else {
-            $dir = Split-Path -Parent $tool.Source
-            Add-Content -Path $env:GITHUB_PATH -Value $dir
-            Write-Host "Using chdman from $dir"
           }
+          if (-not $downloaded -or -not (Test-Path -LiteralPath $archive)) {
+            throw 'Could not download the pinned official MAME Windows tools.'
+          }
+
+          $actualSha256 = (Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($actualSha256 -ne $expectedSha256) {
+            Remove-Item -LiteralPath $archive -Force -ErrorAction SilentlyContinue
+            throw "MAME archive SHA-256 mismatch: expected $expectedSha256, got $actualSha256."
+          }
+
+          $sevenZipCommand = Get-Command 7z.exe -ErrorAction SilentlyContinue
+          if ($sevenZipCommand) {
+            $sevenZip = $sevenZipCommand.Source
+          } else {
+            $sevenZip = @(
+              (Join-Path $env:ProgramFiles '7-Zip\7z.exe'),
+              (Join-Path ${env:ProgramFiles(x86)} '7-Zip\7z.exe')
+            ) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+          }
+          if (-not $sevenZip) { throw '7-Zip was not found on the Windows runner; cannot extract the official MAME tools.' }
+
+          New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
+          & $sevenZip x $archive "-o$extractRoot" -y
+          if ($LASTEXITCODE -ne 0) { throw "Extracting the official MAME archive failed (exit $LASTEXITCODE)." }
+
+          $tool = Get-ChildItem -Path $extractRoot -Filter 'chdman.exe' -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
+          if (-not $tool) { throw 'chdman.exe was not found in the verified official MAME archive.' }
+          Add-Content -Path $env:GITHUB_PATH -Value $tool.DirectoryName
+          Write-Host "Using verified chdman from $($tool.FullName)"
 
       - name: Download and validate original disc
         shell: powershell
