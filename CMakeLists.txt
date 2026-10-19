@@ -156,6 +156,13 @@ if(EMSCRIPTEN)
         GAME_OVERLAY_STATIC_C "${CMAKE_CURRENT_SOURCE_DIR}/generated/overlays_static.c")
 endif()
 
+# The Switch Mesa package provides the desktop OpenGL API used by
+# gpu_gl_renderer.c (including GL 4.x entry points such as glGetTexImage).
+# SDL2 alone does not satisfy these symbols on the static Switch toolchain.
+if(APE_SWITCH_PORT)
+    target_link_libraries(psx-runtime PRIVATE GL)
+endif()
+
 psxrecomp_add_runtime_target(psx-runtime
     PGXP
     GAME_GENERATED_FULL_C "${GAME_GENERATED_FULL}"
