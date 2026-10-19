@@ -19,7 +19,10 @@ void begin(CPUState* cpu,uint32_t) {
      * guard also interpolated title/attract, stage-select, loading, flyovers
      * and warp-ins; these poses are not safe to replay and can visibly wobble
      * or tear. Fail closed outside the known gameplay phase. */
-    if(index>1 || mode != 3) { replay.invalidate(); return; }
+    if (index > 1 || mode != 3) {
+        replay.invalidate();
+        return;
+    }
     buffer=Base+Stride*index; ot=buffer+0x70+0x3FFC;
     replay.capture(cpu,Start,Stop);
 }
@@ -38,7 +41,11 @@ void finish(CPUState* cpu,uint32_t) {
     if(g_psx_render_pass_active || cpu->gpr[31]!=0x8005C4A4)return;
     /* A transition may start after begin(); never submit an interpolated pass
      * once the game's own phase leaves active gameplay. */
-    if(psx_mod_read_byte(0x800F447C)!=3 || psx_mod_read_word(0x800EC35C)>1){replay.invalidate();return;}
+    if (psx_mod_read_byte(0x800F447C) != 3 ||
+        psx_mod_read_word(0x800EC35C) > 1) {
+        replay.invalidate();
+        return;
+    }
     if(cpu->gpr[4]!=buffer || cpu->gpr[5]!=buffer+0x5C || cpu->gpr[6]!=ot){replay.invalidate();return;}
     // This is the game's own wait, which the original function will also
     // execute. Calling it here establishes the pending frame before planning.

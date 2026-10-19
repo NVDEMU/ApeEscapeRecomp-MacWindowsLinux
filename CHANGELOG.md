@@ -6,7 +6,7 @@ All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded h
 ## [Unreleased]
 
 ### Fixed
-- Reduced the PGXP correction tolerance from 1.0 px to the framework-validated 0.5 px for Ape Escape's floor-grid seams; retained CPU-mode propagation for terrain vertices.
+- Removed the stale 0.5 px PGXP tolerance clamp from the high-coverage hook build; use unclamped precision and a single mod-owned PGXP switch to avoid pushing precise vertices back onto the native pixel grid. PGXP remains optional and off by default.
 - Restricted experimental interpolated rendering to the active gameplay phase and re-checks the phase before submitting replay passes, avoiding unsafe interpolation of title, loading, briefing, flyover, warp-in, and transition frames.
 
 ### Fixed
