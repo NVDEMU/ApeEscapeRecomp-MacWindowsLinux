@@ -22,9 +22,9 @@ The CUE must reference the matching BIN track using the correct filename. Keep a
 
 1. Build/download the experimental artifact from the GitHub Actions run named **Switch homebrew (experimental)**.
 2. Extract the ZIP into the emulator's virtual SD-card root, preserving the `switch/ApeEscapeRecomp` directory.
-3. Add your own dumped Ape Escape (USA / SCUS-944.23) disc image under `switch/ApeEscapeRecomp/data/`.
+3. Add your own dumped Ape Escape (USA / SCUS-944.23) disc image under `switch/ApeEscapeRecomp/data/`. The experimental runtime also checks the Ryujinx virtual SD-card mount (`sdmc:/switch/ApeEscapeRecomp/data`) and common `/sdcard` paths, including a bounded shallow scan for files named for Ape Escape or `SCUS_944.23`.
 4. Launch Homebrew Menu and start ApeEscapeRecomp. If direct NRO launch cannot access SD storage in your emulator build, initialize Homebrew Menu first and launch it from there.
-5. Record whether it starts, reaches the game window, recognizes the disc, renders a frame, accepts controller input, and produces audio.
+5. Record whether it starts, reaches the game window, recognizes the disc, renders a frame, accepts controller input, and produces audio. If Ryujinx stores its virtual SD files in a host-side `sdcard` directory, keep the normal `switch/ApeEscapeRecomp/data` tree inside that virtual SD root; the guest runtime cannot automatically read arbitrary host folders that Ryujinx does not expose to the guest.
 
 ## Current limitations
 
