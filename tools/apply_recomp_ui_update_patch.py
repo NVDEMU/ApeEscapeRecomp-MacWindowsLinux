@@ -416,6 +416,26 @@ static std::filesystem::path ape_escape_data_directory() {
     return ape_escape_application_directory();
 }
 
+/* Return the user's home folder, distinct from this app's own AppData folder. */
+static std::filesystem::path ape_escape_user_home_directory() {
+#if defined(_WIN32)
+    const char* raw = std::getenv("USERPROFILE");
+    if (raw && raw[0]) return std::filesystem::path(raw).lexically_normal();
+    const char* drive = std::getenv("HOMEDRIVE");
+    const char* tail = std::getenv("HOMEPATH");
+    if (drive && drive[0] && tail && tail[0])
+        return (std::filesystem::path(drive) / tail).lexically_normal();
+#endif
+    const char* raw_home = std::getenv("HOME");
+    if (raw_home && raw_home[0]) return std::filesystem::path(raw_home).lexically_normal();
+#if defined(LNG_SDL3)
+    const char* sdl_home = SDL_GetUserFolder(SDL_FOLDER_HOME);
+    if (sdl_home && sdl_home[0]) return std::filesystem::path(sdl_home).lexically_normal();
+#endif
+    // Last-resort fallback remains the app's writable per-user data location.
+    return ape_escape_data_directory();
+}
+
 static std::filesystem::path ape_escape_preferences_path() {
     const auto path = ape_escape_data_directory() / "ape_escape_launcher.ini";
     std::error_code ec;
@@ -820,7 +840,10 @@ QUICK_TOOLS = r'''
     const float quick_gap = px(8.0f);
     float quick_button_w = (ImGui::GetContentRegionAvail().x - quick_gap) * 0.5f;
     if (quick_button_w < px(115.0f)) quick_button_w = px(115.0f);
-    if (ImGui::Button("Open Data Folder", ImVec2(quick_button_w, px(34.0f))))
+    if (ImGui::Button("Open User Folder##quick_tools", ImVec2(quick_button_w, px(34.0f))))
+        ape_escape_open_folder(ape_escape_user_home_directory());
+    ImGui::SameLine(0, quick_gap);
+    if (ImGui::Button("Open App Data Folder##quick_tools_data", ImVec2(quick_button_w, px(34.0f))))
         ape_escape_open_folder(ape_escape_data_directory());
     ImGui::SameLine(0, quick_gap);
     if (ImGui::Button("Open Save Folder", ImVec2(quick_button_w, px(34.0f))))

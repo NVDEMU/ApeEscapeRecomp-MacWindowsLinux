@@ -6,6 +6,9 @@ All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded h
 ## [Unreleased]
 
 ### Fixed
+- Fixed the duplicate Open Data Folder ImGui ID; Quick Tools now opens the user's home folder separately from the app-specific data folder, with unique IDs for all folder buttons.
+
+### Fixed
 - Fixed accessibility settings being skipped because the helper declaration marker collided with the UI insertion check; accessibility controls now have a dedicated visible launcher page.
 
 ### Added

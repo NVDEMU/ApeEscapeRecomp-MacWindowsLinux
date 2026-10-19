@@ -84,6 +84,18 @@ updater_button_source = patch[button_start:button_end]
 updater_button_count = updater_button_source.count('ImGui::Button("Check for Nightly Updates"') + helper.count('ImGui::Button("Check for Nightly Updates"')
 if updater_button_count != 1:
     raise SystemExit(f"Expected one visible Nightly updater button to avoid duplicate ImGui IDs, found {updater_button_count}")
+if 'ImGui::Button("Open User Folder##quick_tools"' not in patch:
+    raise SystemExit("Quick Tools must expose a uniquely identified Open User Folder button")
+if "ape_escape_open_folder(ape_escape_user_home_directory());" not in patch:
+    raise SystemExit("Open User Folder must open the user's home directory")
+if 'ImGui::Button("Open App Data Folder##quick_tools_data"' not in patch:
+    raise SystemExit("Quick Tools must retain a separate app-specific data-folder action")
+if 'ImGui::Button("Open App Data Folder##setup_doctor"' not in helper:
+    raise SystemExit("Setup Doctor folder button must use a unique ImGui ID")
+if 'ImGui::Button("Open Data Folder"' in patch or 'ImGui::Button("Open Data Folder"' in helper:
+    raise SystemExit("Duplicate plain Open Data Folder ImGui IDs remain")
+if "static std::filesystem::path ape_escape_user_home_directory()" not in patch:
+    raise SystemExit("User home directory resolver is missing")
 
 for token in (
     "ape_escape_create_save_backup",
