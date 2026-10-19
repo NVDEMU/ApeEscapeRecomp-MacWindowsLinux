@@ -19,49 +19,23 @@ permissions:
 jobs:
   switch-homebrew:
     runs-on: ubuntu-24.04
+    # Use devkitPro's maintained prebuilt Switch image: pkg.devkitpro.org
+    # currently returns HTTP 403 from hosted runners during pacman sync.
+    container:
+      image: devkitpro/devkita64:20260219
     steps:
       - name: Checkout including runtime submodules
         uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install devkitPro Switch toolchain
-        shell: bash
+      - name: Verify preinstalled devkitPro Switch toolchain
         run: |
-          set -o pipefail
-          {
-            sudo apt-get update
-            sudo apt-get install -y wget
-            # apt.devkitpro.org rejects wget's default User-Agent on some runners.
-            wget --user-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36" \
-              --output-document=install-devkitpro-pacman \
-              https://apt.devkitpro.org/install-devkitpro-pacman
-            chmod +x ./install-devkitpro-pacman
-            if ! sudo ./install-devkitpro-pacman; then
-              echo "::warning::devkitPro installer package setup failed during its initial mirror sync; retrying package-database synchronization."
-              sudo dpkg --configure -a || true
-            fi
-            SYNC_OK=0
-            for attempt in 1 2 3 4; do
-              if sudo dkp-pacman -Syu --noconfirm; then
-                SYNC_OK=1
-                break
-              fi
-              if [ "$attempt" -lt 4 ]; then
-                echo "::warning::devkitPro mirror sync failed (attempt $attempt/4); retrying."
-                sleep "$((attempt * 5))"
-              fi
-            done
-            if [ "$SYNC_OK" -ne 1 ]; then
-              echo "::error::devkitPro package-database sync failed after four attempts."
-              exit 1
-            fi
-            sudo dkp-pacman -S --needed --noconfirm switch-dev switch-sdl2 switch-mesa
-            echo "/opt/devkitpro/devkitA64/bin" >> "$GITHUB_PATH"
-            echo "/opt/devkitpro/tools/bin" >> "$GITHUB_PATH"
-            echo "DEVKITPRO=/opt/devkitpro" >> "$GITHUB_ENV"
-            echo "DEVKITA64=/opt/devkitpro/devkitA64" >> "$GITHUB_ENV"
-          } 2>&1 | tee devkitpro-install.log
+          set -euo pipefail
+          test -x "$DEVKITPRO/devkitA64/bin/aarch64-none-elf-gcc"
+          test -x "$DEVKITPRO/tools/bin/elf2nro"
+          echo "DEVKITPRO=$DEVKITPRO" >> "$GITHUB_ENV"
+          echo "DEVKITA64=$DEVKITPRO/devkitA64" >> "$GITHUB_ENV"
 
       - name: Install host-side recompiler dependencies
         run: |
