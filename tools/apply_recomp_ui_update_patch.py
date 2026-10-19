@@ -363,6 +363,8 @@ DRAW_UI_ANCHOR = "void draw_ui(LauncherModel* m, const LauncherTheme& th, int lo
 SETTINGS_ANCHOR = '    if (hotkeys_p && !stacked_hotkeys) hotkeys_p->draw(m, &th);\n}'
 AUDIO_SETTINGS_ANCHOR = 'void draw_audio_controls(LauncherModel* m, const LauncherTheme& th) {\n    eyebrow("AUDIO");'
 OST_SETTINGS_ENTRY_MARKER = "APE_ESCAPE_OST_PLAYER_SETTINGS_ENTRY"
+OST_RANDOM_INCLUDE_MARKER = "APE_ESCAPE_OST_RANDOM_INCLUDES"
+OST_BOOT_AUTOPLAY_MARKER = "APE_ESCAPE_OST_BOOT_AUTOPLAY"
 RUNTIME_KEYBOARD = Path("psxrecomp-v4/runtime/src/psx_keybinds.c")
 UI_KEYBOARD = Path("src/consoles/psx/psx_binds.c")
 KEYBOARD_MARKER = "APE_ESCAPE_CUSTOM_KEYBOARD_DEFAULTS"
@@ -1046,6 +1048,18 @@ def main() -> int:
             1,
         )
 
+    # Randomized cached OST autoplay and smooth 0–100% volume control.
+    if OST_RANDOM_INCLUDE_MARKER not in launcher_text:
+        if args.check:
+            return fail("OST autoplay random-number headers have not been applied.", 1)
+        if launcher_text.count(INCLUDE_ANCHOR) != 1:
+            return fail("Pinned launcher no longer matches the guarded OST standard-header anchor.")
+        launcher_text = launcher_text.replace(
+            INCLUDE_ANCHOR,
+            INCLUDE_ANCHOR + "\n#include <chrono> // " + OST_RANDOM_INCLUDE_MARKER + "\n#include <random>",
+            1,
+        )
+
     # Declare per-user preferences before draw_crt_background reads reduce_motion.
     if PREFS_MARKER not in launcher_text:
         if args.check:
@@ -1470,6 +1484,20 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
     elif ("draw_ui(m, *g_th, p->logical_w, p->logical_h)" not in launcher_text or
           "const LngColor bg = g_th->background;" not in launcher_text):
         return fail("Accessibility theme marker exists but the frame loop is not using the effective theme.")
+
+    # Start shuffle autoplay once per process from cached files, and advance when a track ends.
+    if OST_BOOT_AUTOPLAY_MARKER not in launcher_text:
+        if args.check:
+            return fail("Cached OST boot autoplay has not been connected to the launcher frame loop.", 1)
+        if launcher_text.count(call_anchor) != 1:
+            return fail("Pinned launcher frame loop no longer matches the guarded OST autoplay hook.")
+        launcher_text = launcher_text.replace(
+            call_anchor,
+            "        ape_escape_ost_update_autoplay(); // " + OST_BOOT_AUTOPLAY_MARKER + "\n" + call_anchor,
+            1,
+        )
+    elif "ape_escape_ost_update_autoplay();" not in launcher_text:
+        return fail("OST boot autoplay marker exists but its frame-loop call is missing.", 1)
 
     # Load preferences after ImGui exists, and point the shared background helpers at the same theme copy.
     run_anchor = "    g_th = th;\n"

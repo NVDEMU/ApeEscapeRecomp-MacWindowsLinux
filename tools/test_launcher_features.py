@@ -39,6 +39,17 @@ if "ape_escape_ost_draw(th);" not in ost_settings:
     raise SystemExit("Open OST Player must draw the player inline in the same Audio settings function")
 if 'ImGui::Begin("Ape Escape OST Player"' in helper:
     raise SystemExit("OST player must not use the previous detached ImGui window")
+if 'ImGui::SliderFloat("OST volume",&volume_percent,0.0f,100.0f,"%.0f%%")' not in helper:
+    raise SystemExit("OST volume slider must display a full 0–100 percent range")
+if "ape_escape_audio_set_volume(volume_percent/100.0f)" not in helper:
+    raise SystemExit("OST percent slider value must be normalized before passing it to the audio backend")
+if "OST_RANDOM_INCLUDE_MARKER" not in patch or "OST_BOOT_AUTOPLAY_MARKER" not in patch:
+    raise SystemExit("OST random autoplay standard headers or frame-loop startup hook are missing")
+autoplay_block = helper[helper.index("static void ape_escape_ost_update_autoplay"):helper.index("static void ape_escape_ost_draw")]
+if "ape_escape_ost_refresh()" in autoplay_block or "ape_escape_ost_download(" in autoplay_block:
+    raise SystemExit("Boot shuffle autoplay must not initiate network requests or downloads")
+if "ape_escape_ost_play_random_cached(-1)" not in autoplay_block or "s_ape_ost_shuffle_autoplay" not in autoplay_block:
+    raise SystemExit("OST boot autoplay must select a random cached song and shuffle onward")
 if "EXTRA_HELPERS_PATH = Path(\"tools/launcher_extra_views.inc\")" not in patch:
     raise SystemExit("launcher patch does not load the project-owned feature source")
 
@@ -88,6 +99,14 @@ for token in (
     "SDL_CreateProcess",
     "ape_escape_audio_seek",
     "ost-player",
+    "ape_escape_ost_update_autoplay",
+    "ape_escape_ost_play_random_cached",
+    "ape_escape_ost_cached_track_indices",
+    "s_ape_ost_boot_autoplay_checked",
+    "s_ape_ost_shuffle_autoplay",
+    "std::shuffle",
+    "ape_escape_audio_duration",
+    "ape_escape_audio_position",
 ):
     if token not in helper:
         raise SystemExit(f"launcher helper is missing: {token}")

@@ -1018,6 +1018,9 @@ struct ApeEscapeOstTrack { std::string filename, title; unsigned long long size=
 static std::vector<ApeEscapeOstTrack> s_ape_ost_tracks;
 static bool s_ape_ost_manifest_loaded=false, s_ape_ost_first_refresh=false, s_ape_ost_volume_loaded=false;
 static bool s_ape_ost_window_open=false;
+static bool s_ape_ost_boot_autoplay_checked=false, s_ape_ost_shuffle_autoplay=false;
+static std::mt19937 s_ape_ost_rng(static_cast<std::mt19937::result_type>(
+    std::chrono::high_resolution_clock::now().time_since_epoch().count()));
 static int s_ape_ost_selected=-1, s_ape_ost_current=-1, s_ape_ost_process_kind=0;
 static std::string s_ape_ost_status, s_ape_ost_pending_filename;
 static char s_ape_ost_filter[128]={};
@@ -1160,6 +1163,57 @@ static void ape_escape_ost_play_selected(){
     s_ape_ost_status="Automatic downloads are unavailable on this target. Open Archive.org or place audio files in the OST folder.";
 #endif
 }
+/* Boot autoplay uses only files already cached locally; never starts a download. */
+static std::vector<int> ape_escape_ost_cached_track_indices(){
+    std::vector<int> cached;
+    const auto dir=ape_escape_ost_music_dir();
+    for(size_t i=0;i<s_ape_ost_tracks.size();++i){
+        const auto path=dir/s_ape_ost_tracks[i].filename;
+        std::error_code ec;
+        if(!std::filesystem::is_regular_file(path,ec)||ec)continue;
+        const auto size=std::filesystem::file_size(path,ec);
+        if(!ec&&size>0)cached.push_back(static_cast<int>(i));
+    }
+    return cached;
+}
+static bool ape_escape_ost_play_random_cached(int avoid_index){
+    auto cached=ape_escape_ost_cached_track_indices();
+    if(cached.empty())return false;
+    std::vector<int> choices;
+    for(const int index:cached)if(index!=avoid_index)choices.push_back(index);
+    if(choices.empty())choices=cached;
+    std::shuffle(choices.begin(),choices.end(),s_ape_ost_rng);
+    for(const int index:choices){
+        if(index<0||index>=static_cast<int>(s_ape_ost_tracks.size()))continue;
+        const auto path=ape_escape_ost_music_dir()/s_ape_ost_tracks[static_cast<size_t>(index)].filename;
+        if(ape_escape_audio_play(path.string().c_str())){
+            s_ape_ost_selected=index;s_ape_ost_current=index;
+            s_ape_ost_status="Shuffle autoplay: "+s_ape_ost_tracks[static_cast<size_t>(index)].title;
+            return true;
+        }
+    }
+    return false;
+}
+static void ape_escape_ost_update_autoplay(){
+    if(!s_ape_ost_boot_autoplay_checked){
+        s_ape_ost_boot_autoplay_checked=true;
+        ape_escape_ost_load_volume();
+        if(!s_ape_ost_manifest_loaded)ape_escape_ost_read_manifest();
+        ape_escape_ost_scan_local();
+        s_ape_ost_shuffle_autoplay=ape_escape_ost_play_random_cached(-1);
+        return;
+    }
+    if(!s_ape_ost_shuffle_autoplay||!ape_escape_audio_has_track()||ape_escape_audio_is_paused())return;
+    const float duration=ape_escape_audio_duration();
+    if(duration<=0.0f)return;
+    const float position=ape_escape_audio_position();
+    if(position<duration-0.20f)return;
+    const int previous=s_ape_ost_current;
+    if(!ape_escape_ost_play_random_cached(previous)){
+        s_ape_ost_shuffle_autoplay=false;
+        s_ape_ost_status="Shuffle autoplay stopped: no playable cached tracks remain.";
+    }
+}
 static void ape_escape_ost_draw(const LauncherTheme& th){
     ape_escape_ost_load_volume();
     if(!s_ape_ost_manifest_loaded){
@@ -1226,8 +1280,8 @@ static void ape_escape_ost_draw(const LauncherTheme& th){
             float pos=std::max(0.0f,std::min(duration,ape_escape_audio_position()));ImGui::SetNextItemWidth(-1.0f);
             if(ImGui::SliderFloat("Position",&pos,0.0f,duration,"%.0f sec"))ape_escape_audio_seek(pos);
         }
-        float volume=ape_escape_audio_get_volume();ImGui::SetNextItemWidth(px(260.0f));
-        if(ImGui::SliderFloat("OST volume",&volume,0.0f,1.0f,"%.0f%%")){ape_escape_audio_set_volume(volume);ape_escape_ost_save_volume();}
+        float volume_percent=ape_escape_audio_get_volume()*100.0f;ImGui::SetNextItemWidth(px(260.0f));
+        if(ImGui::SliderFloat("OST volume",&volume_percent,0.0f,100.0f,"%.0f%%")){ape_escape_audio_set_volume(volume_percent/100.0f);ape_escape_ost_save_volume();}
     }
     if(!s_ape_ost_status.empty())ImGui::TextWrapped("%s",s_ape_ost_status.c_str());
     ImGui::TextDisabled("Cached tracks and volume setting stay in your user-data folder across updates.");
@@ -1252,5 +1306,6 @@ static void ape_escape_draw_ost_player_settings(const LauncherTheme& th){ // APE
 }
 #else
 static void ape_escape_draw_ost_player_settings(const LauncherTheme&) {}
+static void ape_escape_ost_update_autoplay() {}
 static void ape_escape_draw_ost_player_window(const LauncherTheme&) {}
 #endif
