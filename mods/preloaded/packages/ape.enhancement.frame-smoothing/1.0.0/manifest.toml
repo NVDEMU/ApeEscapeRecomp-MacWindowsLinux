@@ -3,7 +3,7 @@ id = "ape.enhancement.frame-smoothing"
 version = "1.0.0"
 name = "Ape Escape Frame Rate"
 author = "mstan"
-description = "Intermediate motion rendered with the game's own drawing code. Game logic, timers, and audio remain at their stock cadence. Requires OpenGL."
+description = "Experimental intermediate motion rendered with the game's own drawing code, active gameplay only. Game logic, timers, and audio remain at their stock cadence. Requires OpenGL."
 resolver = "declarative"
 save_compatibility = "shared"
 
@@ -14,7 +14,7 @@ disc_sha256 = "1ae17e78ebb8c782c7c1785b0a0bd7b0ee28235b8a0c83c8df887129899a852a"
 [[feature]]
 id = "temporal-blending"
 name = "Interpolated Rendering"
-description = "Redraw the scene with interpolated model and camera transforms without accelerating gameplay. New geometry and camera cuts retain their current pose."
+description = "Experimental: redraw active gameplay with interpolated model and camera transforms without accelerating gameplay. New geometry and camera cuts retain their current pose; disabled outside gameplay to avoid unsafe transition replay."
 group = "Frame Rate"
 default_enabled = false
 

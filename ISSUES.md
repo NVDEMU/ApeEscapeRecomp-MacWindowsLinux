@@ -206,3 +206,12 @@ The remaining reproducible visual targets are documented above (#3 and #6). The 
   4:3 is the authentic default and is byte-for-byte the original presentation.
 - Widescreen is offered on both the OpenGL and Software renderers and was
   validated primarily on OpenGL (the shipping default).
+
+
+## #9 — PGXP floor seams and visual stutter with optional mods — INVESTIGATING
+
+**Reported 2026-10-18 from QuiverLauncher, macOS and Windows Nightly testers.** One tester saw residual PGXP wobble in widescreen and prominent floor-tile seams. Another reported the background wobbling, tearing, and stuttering when running optional mods.
+
+The game previously overrode the framework's visually validated Ape Escape PGXP tolerance of 0.5 px with 1.0 px. It is now set back to 0.5 px, while `pgxp_cpu_mode = true` remains enabled for the terrain-grid precision-propagation fix. Interpolated Rendering also used to permit replay capture in title/attract, loading, stage-select, flyover and warp-in phases; it is now restricted to active gameplay phase 3.
+
+This is a source/config mitigation, not yet a claim that the reported scenes are fixed. The precise combination of mods, resolution, and render timing used by the reporters is unknown. Reproduce with PGXP and Widescreen independently before testing their combination with Interpolated Rendering. Do not enable PGXP geometry correction by changing its default or bypassing the tolerance guard to conceal the seams.

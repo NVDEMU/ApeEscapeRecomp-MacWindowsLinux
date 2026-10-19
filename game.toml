@@ -71,7 +71,9 @@ fmv_filter = "bicubic"
 geometry_correction = false
 perspective_texturing = false
 pgxp_cpu_mode = true
-pgxp_tolerance = 1.0
+# The framework's Ape Escape A/B validation found 0.5 px clamps visible floor seams
+# without restoring the full native wobble. Keep this tighter than a full pixel.
+pgxp_tolerance = 0.5
 
 # Authentic 4:3 is the baseline. Ape Escape's game-specific widescreen modes
 # are selected from the built-in Mods catalog rather than generic Video settings.

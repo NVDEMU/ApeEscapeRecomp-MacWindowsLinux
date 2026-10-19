@@ -6,6 +6,10 @@ All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded h
 ## [Unreleased]
 
 ### Fixed
+- Reduced the PGXP correction tolerance from 1.0 px to the framework-validated 0.5 px for Ape Escape's floor-grid seams; retained CPU-mode propagation for terrain vertices.
+- Restricted experimental interpolated rendering to the active gameplay phase and re-checks the phase before submitting replay passes, avoiding unsafe interpolation of title, loading, briefing, flyover, warp-in, and transition frames.
+
+### Fixed
 - Stop cached OST autoplay and manual soundtrack playback before launch/relaunch returns control to the game runtime, preventing music from spilling over the Ape Escape title screen. Launch also disables shuffle autoplay for that session.
 
 ### Performance

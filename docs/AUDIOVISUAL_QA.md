@@ -27,3 +27,14 @@ For manual A/B validation after framework or timing changes:
 2. Confirm title/attract, Professor's stage-select briefing, level flyovers and warp-ins retain the original pacing.
 3. Check music/effects continuity, timer behavior, pause/resume, area transitions, memory-card save/load and save-state save/load.
 4. Treat stage-clear results and in-level boss cutscenes as not yet cleared by this optimization until they receive explicit playtesting.
+
+
+## QuiverLauncher reports — PGXP seams and modded rendering stutter (2026-10-18)
+
+Two external reports on the macOS Nightly described (1) residual PGXP wobble and visible floor-tile seams in widescreen, and (2) background wobble/tearing/stutter when optional mods are enabled.
+
+- The game override previously set `pgxp_tolerance = 1.0`, looser than the framework's Ape Escape visual-isolation value of `0.5`. The configuration now uses `0.5`; `pgxp_cpu_mode = true` remains enabled because the framework's terrain-grid fix depends on CPU-mode precision propagation.
+- Interpolated Rendering now captures/submits extra draw passes only during phase 3 (active gameplay). Title/attract, stage-select, loading, flyovers, warp-ins, and transition phases are not replayed.
+- Frame interpolation remains optional and disabled by default. When reproducing stutter, test stock 4:3 first, then PGXP alone, Widescreen alone, and finally the combination; only add Interpolated Rendering after those are clean.
+
+Required manual A/B: same save/checkpoint, same internal resolution and scene, PGXP off/on, tolerance 0.5, and Widescreen off/on. Capture at least 8 seconds each. Inspect ground-grid edges for hairline gaps, moving geometry for residual wobble, and frame pacing for tearing/stutters. Separately compare interpolation off/on in active gameplay and confirm title/briefing/flyover/warp-in screens stay free of extra replay passes. Source-level guardrails do not replace these live captures.
