@@ -808,8 +808,8 @@ static void ape_escape_draw_setup_doctor(LauncherModel* m, const LauncherTheme& 
             [m](const char* path) { if (path) launcher_model_set_rom(m, path); });
     }
     ImGui::SameLine(0, gap);
-    if (ImGui::Button("Open App Data Folder##setup_doctor", ImVec2(w, px(32.0f))))
-        ape_escape_open_folder(ape_escape_data_directory());
+    if (ImGui::Button("Open User Folder##setup_doctor", ImVec2(w, px(32.0f))))
+        ape_escape_open_folder(ape_escape_user_home_directory());
     if (ImGui::Button("Open Settings", ImVec2(w, px(32.0f))))
         launcher_model_set_view(m, LNG_VIEW_SETTINGS);
     ImGui::SameLine(0, gap);

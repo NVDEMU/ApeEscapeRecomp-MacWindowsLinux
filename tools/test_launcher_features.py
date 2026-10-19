@@ -88,8 +88,21 @@ if 'ImGui::Button("Open User Folder##quick_tools"' not in patch:
     raise SystemExit("Quick Tools must expose a uniquely identified Open User Folder button")
 if "ape_escape_open_folder(ape_escape_user_home_directory());" not in patch:
     raise SystemExit("Open User Folder must open the user's home directory")
-if 'ImGui::Button("Open App Data Folder##setup_doctor"' not in helper:
-    raise SystemExit("Setup Doctor folder button must use a unique ImGui ID")
+if 'ImGui::Button("Open User Folder##setup_doctor"' not in helper:
+    raise SystemExit("Setup Doctor must expose a uniquely identified Open User Folder button")
+if "ape_escape_open_folder(ape_escape_user_home_directory());" not in helper:
+    raise SystemExit("Setup Doctor's Open User Folder must open the full user home directory")
+for button in (
+    'ImGui::Button("Open User Folder##quick_tools"',
+    'ImGui::Button("Open Save Folder##quick_tools"',
+    'ImGui::Button("Open Disc Folder##quick_tools"',
+    'ImGui::Button("Open User Folder##setup_doctor"',
+):
+    if patch.count(button) + helper.count(button) != 1:
+        raise SystemExit(f"Folder button must have one unique ImGui ID: {button}")
+if "ape_escape_open_folder(ape_escape_data_directory());" in helper:
+    raise SystemExit("Setup Doctor folder button should open the full user folder, not only app-specific data")
+
 if 'ImGui::Button("Open Data Folder"' in patch or 'ImGui::Button("Open Data Folder"' in helper:
     raise SystemExit("Duplicate plain Open Data Folder ImGui IDs remain")
 if "static std::filesystem::path ape_escape_user_home_directory()" not in patch:

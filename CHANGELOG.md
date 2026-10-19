@@ -6,6 +6,9 @@ All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded h
 ## [Unreleased]
 
 ### Fixed
+- Fixed the data-folder button's conflicting ImGui ID and made it open the full user home folder; folder buttons now use unique IDs.
+
+### Fixed
 - Fixed the duplicate Open Data Folder ImGui ID; Quick Tools now opens the user's home folder separately from the app-specific data folder, with unique IDs for all folder buttons.
 
 ### Fixed

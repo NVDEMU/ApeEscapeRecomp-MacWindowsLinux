@@ -843,9 +843,9 @@ QUICK_TOOLS = r'''
     if (ImGui::Button("Open User Folder##quick_tools", ImVec2(quick_button_w, px(34.0f))))
         ape_escape_open_folder(ape_escape_user_home_directory());
     ImGui::SameLine(0, quick_gap);
-    if (ImGui::Button("Open Save Folder", ImVec2(quick_button_w, px(34.0f))))
+    if (ImGui::Button("Open Save Folder##quick_tools", ImVec2(quick_button_w, px(34.0f))))
         ape_escape_open_folder(ape_escape_application_directory() / "saves");
-    if (ImGui::Button("Open Disc Folder", ImVec2(quick_button_w, px(34.0f))))
+    if (ImGui::Button("Open Disc Folder##quick_tools", ImVec2(quick_button_w, px(34.0f))))
         ape_escape_open_disc_folder(m);
     ImGui::SameLine(0, quick_gap);
     if (ImGui::Button("Copy Build Info", ImVec2(quick_button_w, px(34.0f)))) {
