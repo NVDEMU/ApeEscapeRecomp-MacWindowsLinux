@@ -114,7 +114,7 @@ def main() -> int:
         runtime = replace_exactly_once(
             runtime, interpreter_old, interpreter_new, "interpreter source selection"
         )
-        runtime_cmake.write_text(runtime, encoding="utf-8", newline="\\n")
+        runtime_cmake.write_text(runtime, encoding="utf-8", newline="\n")
 
     # libnx's toolchain does not provide POSIX dlopen/dlsym either. On Switch,
     # use the existing no-dynamic-overlay stubs. The actual overlay code will
