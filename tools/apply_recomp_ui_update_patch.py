@@ -1583,8 +1583,8 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
     # and game share this process/audio backend, so stopping only on track end
     # lets the song spill over the title screen.
     stop_launch_anchor = (
-        "    if (m->action == LNG_ACTION_LAUNCH || m->action == LNG_ACTION_RELAUNCH)\\n"
-        "        launcher_binds_prepare_psx_launch(m, g_pads, g_pad_count);\\n"
+        "    if (m->action == LNG_ACTION_LAUNCH || m->action == LNG_ACTION_RELAUNCH)\n"
+        "        launcher_binds_prepare_psx_launch(m, g_pads, g_pad_count);\n"
     )
     if OST_STOP_ON_LAUNCH_MARKER not in launcher_text:
         if args.check:
@@ -1593,7 +1593,7 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
             return fail("Pinned launcher no longer matches the guarded pre-launch OST stop anchor.")
         launcher_text = launcher_text.replace(
             stop_launch_anchor,
-            "    ape_escape_ost_stop_for_game_launch(); // " + OST_STOP_ON_LAUNCH_MARKER + "\\n" + stop_launch_anchor,
+            "    ape_escape_ost_stop_for_game_launch(); // " + OST_STOP_ON_LAUNCH_MARKER + "\n" + stop_launch_anchor,
             1,
         )
     elif "ape_escape_ost_stop_for_game_launch();" not in launcher_text:
