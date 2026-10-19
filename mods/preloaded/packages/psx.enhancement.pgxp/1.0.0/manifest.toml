@@ -14,7 +14,7 @@ game_id = "SCUS-94423"
 [[feature]]
 id = "pgxp"
 name = "PGXP Precision"
-description = "Reduce polygon wobble and texture warping. Precision is validated against the actual packet words. Turn off for the original geometry and texture placement."
+description = "Experimental high-coverage subpixel geometry and perspective-correct textures. Uses exact projection and dataflow-validated vertex precision; game-specific seams still require visual testing. Turn off for the original PS1 rendering."
 group = "Visual"
 default_enabled = false
 

@@ -23,11 +23,18 @@ if not re.search(r"(?m)^pgxp_tolerance\s*=\s*-1(?:\.0)?\s*$", config):
     raise SystemExit("The hook-flavor PGXP runtime must not clamp precise vertices back to integer pixels.")
 if re.search(r"(?m)^pgxp_tolerance\s*=\s*0\.5\s*$", config):
     raise SystemExit("The stale 0.5 px tolerance clamp must not return.")
+if not re.search(r"(?m)^pgxp_position_fallback\s*=\s*false\s*$", config):
+    raise SystemExit("The high-coverage hook build must use dataflow-only precision, not the position fallback cache.")
+if not re.search(r"(?m)^pgxp_preserve_projection\s*=\s*true\s*$", config):
+    raise SystemExit("The high-coverage hook build must preserve the exact GTE projection.")
 manifest = (ROOT / "mods/preloaded/packages/psx.enhancement.pgxp/1.0.0/manifest.toml").read_text(encoding="utf-8")
 if "default_enabled = false" not in manifest or 'default = "true"' not in manifest:
     raise SystemExit("PGXP must remain optional/off by default while CPU precision propagation is on when selected.")
+ws_manifest = (ROOT / "mods/preloaded/packages/ape.enhancement.widescreen/1.0.0/manifest.toml").read_text(encoding="utf-8")
+if "Experimental" not in ws_manifest or "default_enabled = false" not in ws_manifest:
+    raise SystemExit("Widescreen must remain explicitly experimental and off by default until its visual artifacts are resolved.")
 issues = (ROOT / "ISSUES.md").read_text(encoding="utf-8")
 for title in ("Widescreen: distance (draw-distance) pop-in", "circus balls pop/cull"):
     if title not in issues:
         raise SystemExit(f"Known unverified audiovisual issue was removed: {title}")
-print("AV guardrails passed: PGXP uses the unclamped hook path behind one default-off mod switch, interpolation is gameplay-only, stock 4:3 remains available, and known widescreen defects remain documented.")
+print("AV guardrails passed: hook-build PGXP uses dataflow-only exact projection without a tolerance clamp, interpolation is gameplay-only, stock 4:3 remains available, and Widescreen remains experimental/off by default.")

@@ -6,7 +6,8 @@ All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded h
 ## [Unreleased]
 
 ### Fixed
-- Removed the stale 0.5 px PGXP tolerance clamp from the high-coverage hook build; use unclamped precision and a single mod-owned PGXP switch to avoid pushing precise vertices back onto the native pixel grid. PGXP remains optional and off by default.
+- Configured the high-coverage PGXP hook build for dataflow-only vertex precision and exact GTE projection (`pgxp_position_fallback = false`, `pgxp_preserve_projection = true`, `pgxp_tolerance = -1.0`) behind the single default-off PGXP mod switch. This is a source-level correction; live visual confirmation of wobble, seams, and texture warping is still outstanding.
+- Clarified that Widescreen's current projection-squash path remains experimental and can show geometry/background/culling artifacts; the feature stays off by default and 4:3 remains the reference presentation.
 - Restricted experimental interpolated rendering to the active gameplay phase and re-checks the phase before submitting replay passes, avoiding unsafe interpolation of title, loading, briefing, flyover, warp-in, and transition frames.
 
 ### Fixed

@@ -208,10 +208,14 @@ The remaining reproducible visual targets are documented above (#3 and #6). The 
   validated primarily on OpenGL (the shipping default).
 
 
-## #9 — PGXP floor seams and visual stutter with optional mods — INVESTIGATING
+## #9 — PGXP floor seams, texture warping and residual wobble — INVESTIGATING
 
-**Reported 2026-10-18 from QuiverLauncher, macOS and Windows Nightly testers.** One tester saw residual PGXP wobble in widescreen and prominent floor-tile seams. Another reported background wobbling, tearing, and stuttering with optional mods.
+**Reported 2026-10-18/19 in Nightly testing.** PGXP still leaves obvious wobble, floor seams and warped textures and can look worse when enabled. Shaking is also visible with PGXP disabled.
 
-The earlier follow-up used `pgxp_tolerance = 0.5` based on a low-coverage visual trial. That was not appropriate for this runtime: Ape Escape is built with the high-coverage PGXP hook flavor, where the framework documents that a 0.5 px clamp can push precise vertices back onto the native pixel grid and recreate mixed-precision seams. The game now uses `pgxp_tolerance = -1.0` (unclamped) and `pgxp_mod_only = true`, so PGXP's geometry and texture corrections are controlled by one coherent mod switch. CPU precision propagation remains on when PGXP is enabled.
+The first mitigation set only `pgxp_tolerance = -1.0` and `pgxp_mod_only = true`; it omitted two settings recommended by the pinned framework for the project's high-coverage PGXP hook build. The config now also sets `pgxp_position_fallback = false` (avoid injecting cached unrelated positions into CPU-built 2D vertices) and `pgxp_preserve_projection = true` (use exact GTE projection precision for eligible vertices). CPU precision propagation remains enabled when the PGXP feature is selected. This is a source-level correction, not a visual closure; new-build A/B is still required.
 
-PGXP remains off by default, in line with the project's default-off optional enhancement policy. With PGXP disabled, classic PS1 sub-pixel jitter is expected; the clamp setting cannot fix it because the correction is not active. This config/source correction is not visual closure. Re-test PGXP off/on in stock 4:3 at the same internal resolution and checkpoint, then enable widescreen and test frame smoothing separately. Keep the issue open until captures show the floor-grid seams and unwanted wobble are resolved without introducing tearing or regressions.
+Some sub-pixel vertex wobble when PGXP is off is normal PS1 behavior: GTE screen coordinates lose their fractional pixel position and large polygons use affine texture mapping. However, broad scene shaking, stutter, or additional anomalies cannot be declared authentic without a matched 4:3, PGXP-off comparison against the rebuilt runtime.
+
+## #10 — Widescreen geometry / culling artifacts — OPEN
+
+User reports visible and off-putting widescreen artifacts. The current widescreen feature uses the projection-squash-and-stretch path and known world-culling/background-proportion defects remain open (including issues #3 and #6 above). Keep Widescreen explicitly experimental and disabled by default; do not describe it as fixed. The pinned framework does not include the newer PGXP seam-expansion renderer, and blindly turning on the shelved native-wide path previously caused geometry wedges. Revisit with matched captures and a deliberately validated framework upgrade or a scoped per-title fix, not another blind toggle.

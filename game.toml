@@ -68,11 +68,15 @@ antialiasing = true
 texture_filtering = "bilinear"
 fmv_filter = "bicubic"
 # Use the PGXP package as the single switch for every PGXP correction.
-# This runtime is built with the high-coverage PGXP hook flavor. A 0.5 px
-# tolerance clamp forces some precise vertices back to native pixels and can
-# recreate mixed-precision seams. Use the unclamped hook path instead.
+# This runtime is built with the high-coverage PGXP hook flavor. Use dataflow
+# shadows only (the position cache can inject unrelated world fractions into
+# CPU-built 2D vertices) and preserve the exact GTE projection for geometry.
+# A tolerance clamp can reject valid shadows and mix native/precise triangle
+# corners; keep the hook build unclamped.
 pgxp_mod_only = true
 pgxp_tolerance = -1.0
+pgxp_position_fallback = false
+pgxp_preserve_projection = true
 
 # Authentic 4:3 is the baseline. Ape Escape's game-specific widescreen modes
 # are selected from the built-in Mods catalog rather than generic Video settings.
