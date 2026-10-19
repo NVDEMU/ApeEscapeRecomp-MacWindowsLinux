@@ -11,15 +11,6 @@ on:
       - 'tools/switch/**'
       - '.github/workflows/switch-homebrew.yml'
       - 'psxrecomp-v4'
-  pull_request:
-    paths:
-      - 'CMakeLists.txt'
-      - 'generated/**'
-      - 'src/**'
-      - 'tools/switch/**'
-      - '.github/workflows/switch-homebrew.yml'
-      - 'psxrecomp-v4'
-
 permissions:
   contents: read
 
@@ -33,20 +24,24 @@ jobs:
           submodules: recursive
 
       - name: Install devkitPro Switch toolchain
+        shell: bash
         run: |
-          sudo apt-get update
-          sudo apt-get install -y wget
-          # apt.devkitpro.org currently rejects wget's default User-Agent (HTTP 403).
-          wget --user-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36" \
-            --output-document=install-devkitpro-pacman \
-            https://apt.devkitpro.org/install-devkitpro-pacman
-          chmod +x ./install-devkitpro-pacman
-          sudo ./install-devkitpro-pacman
-          sudo dkp-pacman -Syu --noconfirm switch-dev
-          echo "/opt/devkitpro/devkitA64/bin" >> "$GITHUB_PATH"
-          echo "/opt/devkitpro/tools/bin" >> "$GITHUB_PATH"
-          echo "DEVKITPRO=/opt/devkitpro" >> "$GITHUB_ENV"
-          echo "DEVKITA64=/opt/devkitpro/devkitA64" >> "$GITHUB_ENV"
+          set -o pipefail
+          {
+            sudo apt-get update
+            sudo apt-get install -y wget
+            # apt.devkitpro.org rejects wget's default User-Agent on some runners.
+            wget --user-agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36" \
+              --output-document=install-devkitpro-pacman \
+              https://apt.devkitpro.org/install-devkitpro-pacman
+            chmod +x ./install-devkitpro-pacman
+            sudo ./install-devkitpro-pacman
+            sudo dkp-pacman -Syu --noconfirm switch-dev
+            echo "/opt/devkitpro/devkitA64/bin" >> "$GITHUB_PATH"
+            echo "/opt/devkitpro/tools/bin" >> "$GITHUB_PATH"
+            echo "DEVKITPRO=/opt/devkitpro" >> "$GITHUB_ENV"
+            echo "DEVKITA64=/opt/devkitpro/devkitA64" >> "$GITHUB_ENV"
+          } 2>&1 | tee devkitpro-install.log
 
       - name: Verify generated game sources and Switch toolchain
         run: |
@@ -94,6 +89,7 @@ jobs:
           name: ApeEscapeRecomp-Switch-Experimental
           path: |
             ApeEscapeRecomp-Switch-Experimental.zip
+            devkitpro-install.log
             switch-configure.log
             switch-build.log
           if-no-files-found: warn
