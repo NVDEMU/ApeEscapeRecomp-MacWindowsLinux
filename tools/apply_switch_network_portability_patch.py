@@ -116,7 +116,7 @@ def main() -> int:
         print(f"Switch portability patch: source not found: {fiber_path}", file=sys.stderr)
         return 2
     fiber = fiber_path.read_text(encoding="utf-8-sig")
-    fiber_anchor = "#else /* POSIX: ucontext */\\n\\n#ifndef _XOPEN_SOURCE"
+    fiber_anchor = "#else /* POSIX: ucontext */\n\n#ifndef _XOPEN_SOURCE"
     fiber_backend = r"""#elif defined(PSX_RYUJINX_SDCARD_SCAN) /* Switch: cooperative AArch64 fibers */
 
 #include <stdlib.h>
@@ -147,31 +147,31 @@ static void psx_fiber_trampoline(void)
 __attribute__((naked)) static void psx_fiber_switch_asm(psx_fiber_impl* from, psx_fiber_impl* to)
 {
     __asm__ volatile(
-        "stp x19, x20, [x0, #8]\\n"
-        "stp x21, x22, [x0, #24]\\n"
-        "stp x23, x24, [x0, #40]\\n"
-        "stp x25, x26, [x0, #56]\\n"
-        "stp x27, x28, [x0, #72]\\n"
-        "stp x29, x30, [x0, #88]\\n"
-        "mov x2, sp\\n"
-        "str x2, [x0]\\n"
-        "stp d8, d9, [x0, #104]\\n"
-        "stp d10, d11, [x0, #120]\\n"
-        "stp d12, d13, [x0, #136]\\n"
-        "stp d14, d15, [x0, #152]\\n"
-        "ldr x2, [x1]\\n"
-        "mov sp, x2\\n"
-        "ldp x19, x20, [x1, #8]\\n"
-        "ldp x21, x22, [x1, #24]\\n"
-        "ldp x23, x24, [x1, #40]\\n"
-        "ldp x25, x26, [x1, #56]\\n"
-        "ldp x27, x28, [x1, #72]\\n"
-        "ldp x29, x30, [x1, #88]\\n"
-        "ldp d8, d9, [x1, #104]\\n"
-        "ldp d10, d11, [x1, #120]\\n"
-        "ldp d12, d13, [x1, #136]\\n"
-        "ldp d14, d15, [x1, #152]\\n"
-        "ret\\n"
+        "stp x19, x20, [x0, #8]\n"
+        "stp x21, x22, [x0, #24]\n"
+        "stp x23, x24, [x0, #40]\n"
+        "stp x25, x26, [x0, #56]\n"
+        "stp x27, x28, [x0, #72]\n"
+        "stp x29, x30, [x0, #88]\n"
+        "mov x2, sp\n"
+        "str x2, [x0]\n"
+        "stp d8, d9, [x0, #104]\n"
+        "stp d10, d11, [x0, #120]\n"
+        "stp d12, d13, [x0, #136]\n"
+        "stp d14, d15, [x0, #152]\n"
+        "ldr x2, [x1]\n"
+        "mov sp, x2\n"
+        "ldp x19, x20, [x1, #8]\n"
+        "ldp x21, x22, [x1, #24]\n"
+        "ldp x23, x24, [x1, #40]\n"
+        "ldp x25, x26, [x1, #56]\n"
+        "ldp x27, x28, [x1, #72]\n"
+        "ldp x29, x30, [x1, #88]\n"
+        "ldp d8, d9, [x1, #104]\n"
+        "ldp d10, d11, [x1, #120]\n"
+        "ldp d12, d13, [x1, #136]\n"
+        "ldp d14, d15, [x1, #152]\n"
+        "ret\n"
     );
 }
 
@@ -222,7 +222,7 @@ void psx_fiber_destroy(psx_fiber_t fiber)
 #ifndef _XOPEN_SOURCE""";
     if (fiber_backend not in fiber:
         fiber = replace_exactly_once(fiber, fiber_anchor, fiber_backend, "ucontext backend insertion")
-        fiber_path.write_text(fiber, encoding="utf-8", newline="\\n")
+        fiber_path.write_text(fiber, encoding="utf-8", newline="\n")
 
     source_path.write_text(source, encoding="utf-8", newline="\n")
     print("Applied Switch network and dynamic-overlay portability patches")
