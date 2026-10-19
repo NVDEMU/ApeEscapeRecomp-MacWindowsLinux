@@ -99,6 +99,12 @@ if(EMSCRIPTEN)
     endif()
 endif()
 
+# libnx provides dlopen through its platform runtime; there is no separate libdl.
+# Clear CMake's desktop dl library list only for this opt-in Switch cross-build.
+if(APE_SWITCH_PORT)
+    set(CMAKE_DL_LIBS "")
+endif()
+
 include("${PSXRECOMP_ROOT}/runtime/runtime.cmake")
 
 # Build the framework's PGXP white-box regression suite against the patched
