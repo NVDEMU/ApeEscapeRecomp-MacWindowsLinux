@@ -13,6 +13,7 @@ required_views = (
     "LNG_VIEW_DAILY_CHALLENGE",
     "LNG_VIEW_STAGE_GUIDE",
     "LNG_VIEW_MOD_TOOLKIT",
+    "LNG_VIEW_ACCESSIBILITY",
     "ape_escape_draw_daily_challenge",
     "ape_escape_draw_stage_guide",
     "ape_escape_draw_mod_toolkit",
@@ -25,11 +26,25 @@ for token in required_views:
         raise SystemExit(f"launcher patch is missing integration marker: {token}")
 if "AUDIO_SETTINGS_ANCHOR" not in patch or "OST_SETTINGS_ENTRY_MARKER" not in patch:
     raise SystemExit("OST player is not wired into the Audio settings card")
-accessibility_block = patch[patch.index("ACCESSIBILITY_INSERT = r'''"):patch.index("'''", patch.index("ACCESSIBILITY_INSERT = r'''") + len("ACCESSIBILITY_INSERT = r'''"))]
-if "ape_escape_draw_ost_player_settings(th);" in accessibility_block:
-    raise SystemExit("OST button must not be appended to the bottom of the Settings layout")
-if "ape_escape_draw_ost_player_window(th);" in accessibility_block:
-    raise SystemExit("OST player must not depend on a separate window drawn elsewhere")
+# Accessibility visibility is an end-to-end route, not merely a declared helper.
+for token in (
+    'ACCESSIBILITY_VIEW_MARKER = "APE_ESCAPE_ACCESSIBILITY_VIEW"',
+    'ACCESSIBILITY_NAV_MARKER = "APE_ESCAPE_ACCESSIBILITY_NAV"',
+    'ACCESSIBILITY_BODY_MARKER = "APE_ESCAPE_ACCESSIBILITY_BODY"',
+    'launcher_model_set_view(m, LNG_VIEW_ACCESSIBILITY)',
+    'case LNG_VIEW_ACCESSIBILITY:',
+    'ape_escape_draw_accessibility_settings(th); break;',
+):
+    if token not in patch:
+        raise SystemExit(f"Accessibility page wiring is missing: {token}")
+if "ACCESSIBILITY_FUNCTION_MARKER not in launcher_text" not in patch:
+    raise SystemExit("Accessibility helper definition must be checked independently from page wiring")
+if "if ACCESSIBILITY_NAV_MARKER not in launcher_text:" not in patch:
+    raise SystemExit("Accessibility navigation must use a distinct call-site marker")
+if 'const int count = 6 + (m->mods ? 1 : 0) +' not in patch:
+    raise SystemExit("Navigation sizing does not account for the Accessibility button")
+if "LEGACY_ACCESSIBILITY_CALL in launcher_text" not in patch:
+    raise SystemExit("A clipped legacy Settings-bottom accessibility entry is not cleaned up")
 ost_start = helper.index("static void ape_escape_draw_ost_player_settings")
 ost_end = helper.index(chr(10) + "#else" + chr(10) + "static void ape_escape_draw_ost_player_settings", ost_start)
 ost_settings = helper[ost_start:ost_end]
@@ -167,4 +182,4 @@ for token in (
     if token not in patch:
         raise SystemExit(f"Mod Manager patch is missing integration marker: {token}")
 
-print("Launcher feature integration, OST player, mod manager controls, save protection, daily challenge, stage guide, and plugin toolkit checks passed.")
+print("Launcher feature integration, visible Accessibility page, OST player, mod manager controls, save protection, daily challenge, stage guide, and plugin toolkit checks passed.")

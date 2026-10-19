@@ -5,6 +5,9 @@ All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded h
 
 ## [Unreleased]
 
+### Fixed
+- Fixed accessibility settings being skipped because the helper declaration marker collided with the UI insertion check; accessibility controls now have a dedicated visible launcher page.
+
 ### Added
 - Added a C/C++ lint workflow that checks formatting on changed lines and excludes generated game translations and third-party submodules.
 - Fixed the OST volume slider to show a smooth 0–100% range, and added boot-time shuffle autoplay from locally cached songs only; playback advances to another random cached track when a song ends without downloading during startup. Music files remain in per-user data and are not bundled in releases.

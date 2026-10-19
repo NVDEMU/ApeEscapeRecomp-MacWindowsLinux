@@ -356,7 +356,10 @@ BUTTON = r'''
 # patches idempotent and fail closed if the pinned launcher changes underneath us.
 PREFS_INCLUDE_MARKER = "APE_ESCAPE_LAUNCHER_PREFS_INCLUDE"
 PREFS_MARKER = "ape_escape_accessibility_preferences"
-ACCESSIBILITY_MARKER = "APE_ESCAPE_ACCESSIBILITY_SETTINGS"
+ACCESSIBILITY_FUNCTION_MARKER = "APE_ESCAPE_ACCESSIBILITY_SETTINGS"
+ACCESSIBILITY_VIEW_MARKER = "APE_ESCAPE_ACCESSIBILITY_VIEW"
+ACCESSIBILITY_NAV_MARKER = "APE_ESCAPE_ACCESSIBILITY_NAV"
+ACCESSIBILITY_BODY_MARKER = "APE_ESCAPE_ACCESSIBILITY_BODY"
 QUICK_TOOLS_MARKER = "APE_ESCAPE_QUICK_TOOLS"
 ACCESS_THEME_MARKER = "APE_ESCAPE_ACCESS_THEME_FRAME_LOOP"
 DRAW_UI_ANCHOR = "void draw_ui(LauncherModel* m, const LauncherTheme& th, int logical_w, int logical_h) {"
@@ -665,10 +668,7 @@ static void ape_escape_draw_accessibility_settings(const LauncherTheme& th) {
 }
 '''
 
-ACCESSIBILITY_INSERT = r'''
-    // APE_ESCAPE_SETTINGS_CARD
-    ape_escape_draw_accessibility_settings(th);
-'''
+LEGACY_ACCESSIBILITY_CALL = "    // APE_ESCAPE_SETTINGS_CARD\n    ape_escape_draw_accessibility_settings(th);\n"
 
 MONKEPEDIA_HELPER = r'''/* APE_ESCAPE_MONKEPEDIA_HELPER: source-backed monkey list and manual caught checklist. */
 struct ApeMonkeEntry {
@@ -1105,6 +1105,22 @@ def main() -> int:
         )
         model_path.write_text(model_text, encoding="utf-8")
 
+    # Accessibility controls use a dedicated page, rather than the clipped end of Settings.
+    if ACCESSIBILITY_VIEW_MARKER not in model_text:
+        if args.check:
+            return fail("Dedicated Accessibility view enum has not been applied.", 1)
+        access_view_anchor = "    LNG_VIEW_MOD_TOOLKIT,"
+        if model_text.count(access_view_anchor) != 1:
+            return fail("Pinned launcher model no longer matches the guarded Accessibility view anchor.")
+        model_text = model_text.replace(
+            access_view_anchor,
+            access_view_anchor + "\n    LNG_VIEW_ACCESSIBILITY, /* " + ACCESSIBILITY_VIEW_MARKER + " */",
+            1,
+        )
+        model_path.write_text(model_text, encoding="utf-8")
+    elif "    LNG_VIEW_ACCESSIBILITY," not in model_text:
+        return fail("Accessibility view marker exists but the enum value is missing.", 1)
+
     helper_marker = "APE_ESCAPE_MONKEPEDIA_HELPER"
     if helper_marker not in launcher_text:
         if args.check:
@@ -1363,6 +1379,30 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
             return fail("Pinned launcher navigation no longer matches the guarded Monkepedia nav anchor.")
         launcher_text = launcher_text.replace(old_nav, new_nav, 1)
 
+    # Separate call-site marker: declaring the helper must never make the menu entry look installed.
+    if ACCESSIBILITY_NAV_MARKER not in launcher_text:
+        if args.check:
+            return fail("Accessibility navigation button has not been applied.", 1)
+        count_anchor = "            const int count = 5 + (m->mods ? 1 : 0) +"
+        if launcher_text.count(count_anchor) != 1:
+            return fail("Pinned launcher nav count no longer matches the guarded Accessibility button anchor.")
+        launcher_text = launcher_text.replace(
+            count_anchor, "            const int count = 6 + (m->mods ? 1 : 0) +", 1
+        )
+        toolkit_line = "                launcher_model_set_view(m, LNG_VIEW_MOD_TOOLKIT);"
+        if launcher_text.count(toolkit_line) != 1:
+            return fail("Pinned launcher nav no longer matches the guarded Accessibility button insertion point.")
+        launcher_text = launcher_text.replace(
+            toolkit_line,
+            toolkit_line + "\n"
+            "            ImGui::SameLine(0, gap);\n"
+            '            if (ImGui::Button("Accessibility", ImVec2(w, px(34))))\n'
+            "                launcher_model_set_view(m, LNG_VIEW_ACCESSIBILITY); // " + ACCESSIBILITY_NAV_MARKER,
+            1,
+        )
+    elif "launcher_model_set_view(m, LNG_VIEW_ACCESSIBILITY);" not in launcher_text:
+        return fail("Accessibility navigation marker exists but its view action is missing.", 1)
+
     body_marker = "APE_ESCAPE_MONKEPEDIA_BODY"
     if body_marker not in launcher_text:
         if args.check:
@@ -1381,6 +1421,21 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
     if "APE_ESCAPE_EXTRA_LAUNCHER_BODY" not in launcher_text:
         return fail("Daily Challenge, Stage Guide and Mod Toolkit view dispatch is missing.", 1)
 
+    if ACCESSIBILITY_BODY_MARKER not in launcher_text:
+        if args.check:
+            return fail("Accessibility page body dispatch has not been applied.", 1)
+        toolkit_case = "        case LNG_VIEW_MOD_TOOLKIT: ape_escape_draw_mod_toolkit(m, th); break;"
+        if launcher_text.count(toolkit_case) != 1:
+            return fail("Pinned launcher view switch no longer matches the guarded Accessibility body anchor.")
+        launcher_text = launcher_text.replace(
+            toolkit_case,
+            toolkit_case + "\n        case LNG_VIEW_ACCESSIBILITY: /* " + ACCESSIBILITY_BODY_MARKER +
+                " */ ape_escape_draw_accessibility_settings(th); break;",
+            1,
+        )
+    elif "ape_escape_draw_accessibility_settings(th); break;" not in launcher_text:
+        return fail("Accessibility body marker exists but the dedicated page call is missing.", 1)
+
     for helper_symbol in (
         "ape_escape_draw_save_protection_center",
         "ape_escape_draw_setup_doctor",
@@ -1393,13 +1448,17 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
         if helper_symbol not in extra_helpers:
             return fail(f"Required launcher feature helper is missing: {helper_symbol}", 2)
 
-    # Add the accessibility card at the end of the Settings page.
-    if ACCESSIBILITY_MARKER not in launcher_text:
-        if args.check:
-            return fail("The accessibility settings card has not been applied.", 1)
-        if launcher_text.count(SETTINGS_ANCHOR) != 1:
-            return fail("Pinned launcher settings no longer match the guarded accessibility card anchor.")
-        launcher_text = launcher_text.replace(SETTINGS_ANCHOR, ACCESSIBILITY_INSERT + SETTINGS_ANCHOR, 1)
+    # Migrate out the old Settings-bottom call, which could be outside the visible area.
+    if LEGACY_ACCESSIBILITY_CALL in launcher_text:
+        launcher_text = launcher_text.replace(LEGACY_ACCESSIBILITY_CALL, "", 1)
+    if "APE_ESCAPE_SETTINGS_CARD" in launcher_text:
+        launcher_text = launcher_text.replace("    // APE_ESCAPE_SETTINGS_CARD\n", "", 1)
+    if ACCESSIBILITY_FUNCTION_MARKER not in launcher_text:
+        return fail("Accessibility settings controls are not defined in the launcher helper.", 1)
+    if (ACCESSIBILITY_VIEW_MARKER not in model_text or
+            ACCESSIBILITY_NAV_MARKER not in launcher_text or
+            ACCESSIBILITY_BODY_MARKER not in launcher_text):
+        return fail("Accessibility page must have a view enum, visible nav button, and body dispatch.", 1)
 
     # Put a small OST launcher button in the visible Audio settings card. The full
     # player lives in a separate resizable window, not after the entire Settings
