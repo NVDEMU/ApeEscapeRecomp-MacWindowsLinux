@@ -18,6 +18,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
+      - name: Apply and verify the pinned PGXP projection correction
+        run: |
+          set -euo pipefail
+          python3 -m py_compile tools/apply_pgxp_projection_patch.py
+          python3 tools/apply_pgxp_projection_patch.py --framework-root psxrecomp-v4
+          python3 tools/apply_pgxp_projection_patch.py --framework-root psxrecomp-v4 --check
       - name: Check changelog and generated release notes
         run: |
           set -euo pipefail
@@ -298,8 +304,8 @@ jobs:
 
       - name: Compile the runtime and tests
         run: |
-          cmake --build build-macos-release --parallel "$BUILD_JOBS" --target psx-runtime ape_stick_response_test ape_preloaded_mods_test
-          ctest --test-dir build-macos-release --output-on-failure -R 'ape_stick_response_test|ape_preloaded_mods_test'
+          cmake --build build-macos-release --parallel "$BUILD_JOBS" --target psx-runtime pgxp_test ape_stick_response_test ape_preloaded_mods_test
+          ctest --test-dir build-macos-release --output-on-failure -R 'pgxp_test|ape_stick_response_test|ape_preloaded_mods_test'
 
       - name: Write release provenance for the updater
         run: python3 tools/write_build_provenance.py
@@ -473,9 +479,9 @@ jobs:
           if (!(Test-Path -LiteralPath $cmake)) { $cmake = (Get-Command cmake.exe -ErrorAction Stop).Source }
           if (!(Test-Path -LiteralPath $ctest)) { $ctest = (Get-Command ctest.exe -ErrorAction Stop).Source }
           Write-Host "Using MinGW tools from $mingwBin"
-          & $cmake --build build-release --target ape_stick_response_test ape_preloaded_mods_test --parallel 2
+          & $cmake --build build-release --target pgxp_test ape_stick_response_test ape_preloaded_mods_test --parallel 2
           if ($LASTEXITCODE -ne 0) { throw "Building tests failed (exit $LASTEXITCODE)." }
-          & $ctest --test-dir build-release --output-on-failure -R 'ape_stick_response_test|ape_preloaded_mods_test'
+          & $ctest --test-dir build-release --output-on-failure -R 'pgxp_test|ape_stick_response_test|ape_preloaded_mods_test'
           if ($LASTEXITCODE -ne 0) { throw "Native tests failed (exit $LASTEXITCODE)." }
 
       - name: Upload the Windows x64 release file
@@ -589,8 +595,8 @@ jobs:
           test -n "$APPIMAGE"
           chmod +x "$APPIMAGE"
           bash tools/test_appimage_layout.sh "$APPIMAGE"
-          cmake --build build-appimage --target ape_stick_response_test ape_preloaded_mods_test --parallel 2
-          ctest --test-dir build-appimage --output-on-failure -R 'ape_stick_response_test|ape_preloaded_mods_test'
+          cmake --build build-appimage --target pgxp_test ape_stick_response_test ape_preloaded_mods_test --parallel 2
+          ctest --test-dir build-appimage --output-on-failure -R 'pgxp_test|ape_stick_response_test|ape_preloaded_mods_test'
           sha256sum "$APPIMAGE" | sed "s|  $APPIMAGE|  $(basename "$APPIMAGE")|" > release-linux/SHA256SUMS-linux-x86_64.txt
       - name: Upload Linux x86_64 release
         uses: actions/upload-artifact@v4

@@ -25,6 +25,19 @@ if(NOT APE_UPDATER_PATCH_RESULT EQUAL 0)
     message(FATAL_ERROR "Could not apply the nvd123 Nightly updater launcher patch.")
 endif()
 
+# Apply the audited PGXP projection correction to the pinned framework itself.
+# The patch is idempotent, validates the framework pin, and fails closed if its
+# source anchors change, keeping local CMake builds in sync with CI.
+execute_process(
+    COMMAND "${Python3_EXECUTABLE}"
+            "${CMAKE_CURRENT_SOURCE_DIR}/tools/apply_pgxp_projection_patch.py"
+            --framework-root "${PSXRECOMP_ROOT}"
+    RESULT_VARIABLE APE_PGXP_PROJECTION_PATCH_RESULT
+)
+if(NOT APE_PGXP_PROJECTION_PATCH_RESULT EQUAL 0)
+    message(FATAL_ERROR "Could not apply the PGXP projection correction to the pinned framework.")
+endif()
+
 # Android loads a shared SDL entry-point library and needs writable app-private
 # storage. The patch is guarded and does not touch source on desktop builds.
 if(ANDROID)

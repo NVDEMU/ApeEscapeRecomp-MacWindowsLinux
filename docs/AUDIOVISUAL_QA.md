@@ -17,6 +17,13 @@ A source-level review has not established a universal audio/video defect in the 
 
 Compilation alone cannot establish that the game is glitch-free.
 
+
+## PGXP precision projection correction (2026-10-19)
+
+The desktop configure step applies `tools/apply_pgxp_projection_patch.py` to the exact pinned PSXRecomp checkout. This clean-room correction keeps the preserve-projection path available for both GTE SF modes, emulates GTE IR limit-mode saturation before projection, and floors near-camera depth at H/2 like DuckStation's PGXP projection path. The result is still checked against the actual SXY packet word by `pgxp_ppp_accept`; no guest-visible registers are changed. The framework's `pgxp_test` is built and run in Windows, macOS, and Linux release jobs.
+
+This is an implementation change, not proof of visual parity. Compare the same save and camera in 4:3 with PGXP enabled, especially close terrain, rapidly moving geometry, and an in-engine cutscene. Record any remaining wobble and whether PGXP-off stock rendering has the same camera shake before closing the issue.
+
 ## Crabby Beach performance regression
 
 The title's `[timing]` config scales recompiled CPU instruction charging by 2 only when byte `0x800F447C == 3` (active level gameplay). VBlank, timers, CD, SPU and DMA remain on the PlayStation clock. The test suite also verifies that the pinned PSXRecomp parser/runtime implement this gate.
