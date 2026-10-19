@@ -24,7 +24,7 @@ This repository packages the North American **Ape Escape** game (SCUS-94423) as 
 
 The project is still a work in progress, but a 100% playthrough can be verified!
 
-**The original game is not included.** You need your own legally obtained disc image. No retail PlayStation BIOS is bundled; OpenBIOS is supplied as the default alternative.
+**The original game is not included.** You need your own legally obtained disc image (CHD/CUE/BIN). No retail PlayStation BIOS is bundled; OpenBIOS is supplied as the default alternative.
 
 ## Choose your platform
 
