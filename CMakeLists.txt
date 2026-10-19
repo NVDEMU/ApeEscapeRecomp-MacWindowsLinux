@@ -33,10 +33,6 @@ option(APE_SWITCH_PORT "Enable experimental Nintendo Switch / Ryujinx port hooks
 if(APE_SWITCH_PORT)
     set(PSX_SDL_BACKEND "SDL2" CACHE STRING "SDL backend for Switch" FORCE)
     add_compile_definitions(PSX_RYUJINX_SDCARD_SCAN=1)
-    # Native AOT overlay loading uses dlopen(), which libnx doesn't provide.
-    # Enable the real MIPS interpreter as the fallback for any overlay code
-    # that is not included in a future static AOT overlay bundle.
-    set(PSX_SWITCH_INTERPRETER_FALLBACK ON)
     execute_process(
         COMMAND "${Python3_EXECUTABLE}"
                 "${CMAKE_CURRENT_SOURCE_DIR}/tools/apply_switch_sdcard_patch.py"
