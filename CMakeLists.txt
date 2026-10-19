@@ -42,6 +42,16 @@ if(APE_SWITCH_PORT)
     if(NOT APE_SWITCH_SDCARD_PATCH_RESULT EQUAL 0)
         message(FATAL_ERROR "Could not apply the experimental Switch/Ryujinx SD-card runtime patch.")
     endif()
+
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tools/apply_switch_network_portability_patch.py"
+                --framework-root "${PSXRECOMP_ROOT}"
+        RESULT_VARIABLE APE_SWITCH_NETWORK_PATCH_RESULT
+    )
+    if(NOT APE_SWITCH_NETWORK_PATCH_RESULT EQUAL 0)
+        message(FATAL_ERROR "Could not apply the Switch/libnx network portability patch.")
+    endif()
 endif()
 
 # Apply the audited PGXP projection correction to the pinned framework itself.
