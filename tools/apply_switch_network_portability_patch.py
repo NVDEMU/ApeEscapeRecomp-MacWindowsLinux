@@ -108,6 +108,34 @@ def main() -> int:
         )
         overlay_path.write_text(overlay, encoding="utf-8", newline="\n")
 
+    # The runtime debug server uses byte-order helpers that libnx's POSIX
+    # compatibility headers do not consistently expose. Keep the debug server
+    # buildable on Switch with AArch64 little-endian conversions, scoped to this
+    # opt-in target only.
+    debug_path = args.framework_root / "runtime" / "src" / "debug_server.c"
+    if not debug_path.is_file():
+        print(f"Switch portability patch: source not found: {debug_path}", file=sys.stderr)
+        return 2
+    debug = debug_path.read_text(encoding="utf-8-sig")
+    debug_marker = "/* Switch portability: byte-order helpers for libnx. */"
+    if debug_marker not in debug:
+        debug_prefix = """/* Switch portability: byte-order helpers for libnx. */
+#if defined(PSX_RYUJINX_SDCARD_SCAN)
+#include <stdint.h>
+#ifndef INADDR_LOOPBACK
+#define INADDR_LOOPBACK 0x7f000001U
+#endif
+#ifndef htonl
+#define htonl(value) __builtin_bswap32((uint32_t)(value))
+#endif
+#ifndef htons
+#define htons(value) __builtin_bswap16((uint16_t)(value))
+#endif
+#endif
+"""
+        debug = debug_prefix + debug
+        debug_path.write_text(debug, encoding="utf-8", newline="\\n")
+
     # libnx does not ship POSIX ucontext.h. Add a real cooperative AArch64
     # fiber backend for Switch rather than stubbing thread switches (the PS1
     # BIOS scheduler depends on preserving separate stacks).
