@@ -119,7 +119,16 @@ def main() -> int:
     debug = debug_path.read_text(encoding="utf-8-sig")
     debug_marker = "/* Switch portability: byte-order helpers for libnx. */"
     if debug_marker not in debug:
-        debug_prefix = """/* Switch portability: byte-order helpers for libnx. */
+        # Place the macros after the source's headers so they cannot rewrite
+        # declarations inside libc headers.
+        last_include = debug.rfind("#include")
+        if last_include < 0:
+            raise RuntimeError("debug server has no include block")
+        insert_at = debug.find("\n", last_include)
+        if insert_at < 0:
+            raise RuntimeError("debug server include block is malformed")
+        debug_compat = """
+/* Switch portability: byte-order helpers for libnx. */
 #if defined(PSX_RYUJINX_SDCARD_SCAN)
 #include <stdint.h>
 #ifndef INADDR_LOOPBACK
@@ -133,7 +142,7 @@ def main() -> int:
 #endif
 #endif
 """
-        debug = debug_prefix + debug
+        debug = debug[:insert_at + 1] + debug_compat + debug[insert_at + 1:]
         debug_path.write_text(debug, encoding="utf-8", newline="\n")
 
     # libnx does not ship POSIX ucontext.h. Add a real cooperative AArch64
