@@ -22,7 +22,7 @@
 
 This repository packages the North American **Ape Escape** game (SCUS-94423) as a native application through static recompilation. The goal is a convenient desktop experience with a dedicated launcher, flexible controller and video settings, saves, and an optional mod collection.
 
-The project is still a work in progress. Getting to gameplay is not the same as verifying every stage, cutscene, boss, save path, or ending, so a complete end-to-end playthrough is **not yet certified**.
+The project is still a work in progress, but a 100% playthrough can be verified!
 
 **The original game is not included.** You need your own legally obtained disc image. No retail PlayStation BIOS is bundled; OpenBIOS is supplied as the default alternative.
 
