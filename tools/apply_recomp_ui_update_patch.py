@@ -368,6 +368,7 @@ AUDIO_SETTINGS_ANCHOR = 'void draw_audio_controls(LauncherModel* m, const Launch
 OST_SETTINGS_ENTRY_MARKER = "APE_ESCAPE_OST_PLAYER_SETTINGS_ENTRY"
 OST_RANDOM_INCLUDE_MARKER = "APE_ESCAPE_OST_RANDOM_INCLUDES"
 OST_BOOT_AUTOPLAY_MARKER = "APE_ESCAPE_OST_BOOT_AUTOPLAY"
+OST_STOP_ON_LAUNCH_MARKER = "APE_ESCAPE_OST_STOP_ON_GAME_LAUNCH"
 RUNTIME_KEYBOARD = Path("psxrecomp-v4/runtime/src/psx_keybinds.c")
 UI_KEYBOARD = Path("src/consoles/psx/psx_binds.c")
 KEYBOARD_MARKER = "APE_ESCAPE_CUSTOM_KEYBOARD_DEFAULTS"
@@ -1577,6 +1578,26 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
         )
     elif "ape_escape_ost_update_autoplay();" not in launcher_text:
         return fail("OST boot autoplay marker exists but its frame-loop call is missing.", 1)
+
+    # Stop OST playback before control returns to the game runtime. The launcher
+    # and game share this process/audio backend, so stopping only on track end
+    # lets the song spill over the title screen.
+    stop_launch_anchor = (
+        "    if (m->action == LNG_ACTION_LAUNCH || m->action == LNG_ACTION_RELAUNCH)\\n"
+        "        launcher_binds_prepare_psx_launch(m, g_pads, g_pad_count);\\n"
+    )
+    if OST_STOP_ON_LAUNCH_MARKER not in launcher_text:
+        if args.check:
+            return fail("OST playback is not stopped when the game launch action is selected.", 1)
+        if launcher_text.count(stop_launch_anchor) != 1:
+            return fail("Pinned launcher no longer matches the guarded pre-launch OST stop anchor.")
+        launcher_text = launcher_text.replace(
+            stop_launch_anchor,
+            "    ape_escape_ost_stop_for_game_launch(); // " + OST_STOP_ON_LAUNCH_MARKER + "\\n" + stop_launch_anchor,
+            1,
+        )
+    elif "ape_escape_ost_stop_for_game_launch();" not in launcher_text:
+        return fail("OST stop-on-launch marker exists but its call is missing.", 1)
 
     # Load preferences after ImGui exists, and point the shared background helpers at the same theme copy.
     run_anchor = "    g_th = th;\n"

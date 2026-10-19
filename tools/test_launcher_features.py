@@ -87,13 +87,21 @@ if 'ImGui::SliderFloat("OST volume",&volume_percent,0.0f,100.0f,"%.0f%%")' not i
     raise SystemExit("OST volume slider must display a full 0–100 percent range")
 if "ape_escape_audio_set_volume(volume_percent/100.0f)" not in helper:
     raise SystemExit("OST percent slider value must be normalized before passing it to the audio backend")
-if "OST_RANDOM_INCLUDE_MARKER" not in patch or "OST_BOOT_AUTOPLAY_MARKER" not in patch:
+if "OST_RANDOM_INCLUDE_MARKER" not in patch or "OST_BOOT_AUTOPLAY_MARKER" not in patch or "OST_STOP_ON_LAUNCH_MARKER" not in patch:
     raise SystemExit("OST random autoplay standard headers or frame-loop startup hook are missing")
 autoplay_block = helper[helper.index("static void ape_escape_ost_update_autoplay"):helper.index("static void ape_escape_ost_draw")]
 if "ape_escape_ost_refresh()" in autoplay_block or "ape_escape_ost_download(" in autoplay_block:
     raise SystemExit("Boot shuffle autoplay must not initiate network requests or downloads")
 if "ape_escape_ost_play_random_cached(-1)" not in autoplay_block or "s_ape_ost_shuffle_autoplay" not in autoplay_block:
     raise SystemExit("OST boot autoplay must select a random cached song and shuffle onward")
+stop_index = helper.index("static void ape_escape_ost_stop_for_game_launch")
+stop_block = helper[stop_index:helper.index("static void ape_escape_ost_draw", stop_index)]
+if "s_ape_ost_shuffle_autoplay=false" not in stop_block or "ape_escape_audio_stop()" not in stop_block:
+    raise SystemExit("OST must stop and disable shuffle autoplay before launching the game")
+if "ape_escape_ost_stop_for_game_launch();" not in patch:
+    raise SystemExit("Launcher patch must stop OST playback at the game launch/relaunch boundary")
+if "LNG_ACTION_LAUNCH || m->action == LNG_ACTION_RELAUNCH" not in patch:
+    raise SystemExit("OST stop-on-launch hook must cover both launch and relaunch actions")
 if "EXTRA_HELPERS_PATH = Path(\"tools/launcher_extra_views.inc\")" not in patch:
     raise SystemExit("launcher patch does not load the project-owned feature source")
 

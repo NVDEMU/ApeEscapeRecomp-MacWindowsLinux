@@ -5,6 +5,9 @@ All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded h
 
 ## [Unreleased]
 
+### Fixed
+- Stop cached OST autoplay and manual soundtrack playback before launch/relaunch returns control to the game runtime, preventing music from spilling over the Ape Escape title screen. Launch also disables shuffle autoplay for that session.
+
 ### Performance
 - Restore the upstream-tested guest-cycle scaling optimization for crowded gameplay, gated to Ape Escape phase 3 at RAM byte 0x800F447C. Recompiled CPU work is charged at scale 2 while VBlank, timers, CD, SPU, and DMA remain on the original PlayStation clock; menus, intros, and transitions keep normal timing.
 

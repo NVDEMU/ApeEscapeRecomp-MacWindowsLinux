@@ -1214,6 +1214,15 @@ static void ape_escape_ost_update_autoplay(){
         s_ape_ost_status="Shuffle autoplay stopped: no playable cached tracks remain.";
     }
 }
+static void ape_escape_ost_stop_for_game_launch(){
+    /* The launcher's miniaudio engine survives into the game runtime. Stop it
+     * before the game opens its own audio path; never let a cached OST track
+     * bleed over the title screen or gameplay. */
+    s_ape_ost_shuffle_autoplay=false;
+    s_ape_ost_boot_autoplay_checked=true;
+    if(ape_escape_audio_has_track())ape_escape_audio_stop();
+    s_ape_ost_status="Playback stopped because the game is starting.";
+}
 static void ape_escape_ost_draw(const LauncherTheme& th){
     ape_escape_ost_load_volume();
     if(!s_ape_ost_manifest_loaded){
@@ -1307,5 +1316,6 @@ static void ape_escape_draw_ost_player_settings(const LauncherTheme& th){ // APE
 #else
 static void ape_escape_draw_ost_player_settings(const LauncherTheme&) {}
 static void ape_escape_ost_update_autoplay() {}
+static void ape_escape_ost_stop_for_game_launch() {}
 static void ape_escape_draw_ost_player_window(const LauncherTheme&) {}
 #endif
