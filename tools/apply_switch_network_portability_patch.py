@@ -134,7 +134,7 @@ def main() -> int:
 #endif
 """
         debug = debug_prefix + debug
-        debug_path.write_text(debug, encoding="utf-8", newline="\\n")
+        debug_path.write_text(debug, encoding="utf-8", newline="\n")
 
     # libnx does not ship POSIX ucontext.h. Add a real cooperative AArch64
     # fiber backend for Switch rather than stubbing thread switches (the PS1
