@@ -13,12 +13,6 @@ on:
       - 'tools/apply_switch_sdcard_patch.py'
       - '.github/workflows/switch-homebrew.yml'
       - 'psxrecomp-v4'
-# Keep only the newest Switch build for this branch; each iteration tests a
-# concrete compiler fix and stale queued builds waste the hosted-runner budget.
-concurrency:
-  group: switch-homebrew-${{ github.ref }}
-  cancel-in-progress: true
-
 permissions:
   contents: read
 
