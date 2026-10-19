@@ -177,13 +177,6 @@ psxrecomp_add_runtime_target(psx-runtime
     PRELOADED_MODS_DIR "${APE_PRELOADED_MODS}"
 )
 
-# The Switch Mesa package provides the desktop OpenGL API used by
-# gpu_gl_renderer.c (including GL 4.x entry points such as glGetTexImage).
-# SDL2 alone does not satisfy these symbols on the static Switch toolchain.
-if(APE_SWITCH_PORT)
-    target_link_libraries(psx-runtime PRIVATE GL)
-endif()
-
 
 
 # Settings OST player playback (native desktop only; browser/Android/Switch remain unchanged).
