@@ -37,8 +37,26 @@ jobs:
               --output-document=install-devkitpro-pacman \
               https://apt.devkitpro.org/install-devkitpro-pacman
             chmod +x ./install-devkitpro-pacman
-            sudo ./install-devkitpro-pacman
-            sudo dkp-pacman -Syu --noconfirm switch-dev switch-sdl2 switch-mesa
+            if ! sudo ./install-devkitpro-pacman; then
+              echo "::warning::devkitPro installer package setup failed during its initial mirror sync; retrying package-database synchronization."
+              sudo dpkg --configure -a || true
+            fi
+            SYNC_OK=0
+            for attempt in 1 2 3 4; do
+              if sudo dkp-pacman -Syu --noconfirm; then
+                SYNC_OK=1
+                break
+              fi
+              if [ "$attempt" -lt 4 ]; then
+                echo "::warning::devkitPro mirror sync failed (attempt $attempt/4); retrying."
+                sleep "$((attempt * 5))"
+              fi
+            done
+            if [ "$SYNC_OK" -ne 1 ]; then
+              echo "::error::devkitPro package-database sync failed after four attempts."
+              exit 1
+            fi
+            sudo dkp-pacman -S --needed --noconfirm switch-dev switch-sdl2 switch-mesa
             echo "/opt/devkitpro/devkitA64/bin" >> "$GITHUB_PATH"
             echo "/opt/devkitpro/tools/bin" >> "$GITHUB_PATH"
             echo "DEVKITPRO=/opt/devkitpro" >> "$GITHUB_ENV"
