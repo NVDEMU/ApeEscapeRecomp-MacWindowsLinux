@@ -103,15 +103,32 @@ jobs:
           set -o pipefail
           cmake --build build-switch --parallel 2 2>&1 | tee switch-build.log
 
-      - name: Locate and validate NRO
+      - name: Convert runtime ELF to NRO and prepare test package
         shell: bash
         run: |
           set -euo pipefail
-          find build-switch -type f -name '*.nro' -print
           NRO="$(find build-switch -type f -name '*.nro' -print -quit)"
-          test -n "$NRO"
-          mkdir -p switch-test-package/switch/ApeEscapeRecomp
+          if [ -z "$NRO" ]; then
+            ELF="$(find build-switch -type f -name 'ApeEscapeRecomp.elf' -print -quit)"
+            if [ -z "$ELF" ]; then
+              echo "::error::Runtime ELF missing; available ELF outputs:"
+              find build-switch -type f -name '*.elf' -print
+              exit 1
+            fi
+            NACP="$PWD/build-switch/ApeEscapeRecomp.nacp"
+            NRO="$PWD/build-switch/ApeEscapeRecomp.nro"
+            "$DEVKITPRO/tools/bin/nacptool" --create "Ape Escape Recompiled - Enhanced Edition" "NVDEMU" "0.1.0" "$NACP"
+            "$DEVKITPRO/tools/bin/elf2nro" "$ELF" "$NRO" --nacp="$NACP"
+          fi
+          test -s "$NRO"
+          mkdir -p switch-test-package/switch/ApeEscapeRecomp/data
           cp "$NRO" switch-test-package/switch/ApeEscapeRecomp/ApeEscapeRecomp.nro
+          cat > switch-test-package/switch/ApeEscapeRecomp/data/README.txt <<'EOF'
+          Put your own Ape Escape (USA / SCUS-944.23) disc files here.
+          For CUE/BIN, put all referenced files in this folder and keep their
+          filenames consistent with the CUE's FILE entries. A CHD is also
+          accepted by the runtime when supported by its disc picker.
+          EOF
           cp tools/switch/README.md switch-test-package/README.txt
           cd switch-test-package
           zip -r ../ApeEscapeRecomp-Switch-Experimental.zip .
