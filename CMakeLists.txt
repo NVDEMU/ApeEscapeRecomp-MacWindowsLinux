@@ -165,7 +165,7 @@ psxrecomp_add_runtime_target(psx-runtime
 # Settings OST player playback (native desktop only; browser/Android/Switch remain unchanged).
 # Only the decoder is fetched at build time. Actual soundtrack tracks are downloaded
 # individually at runtime and kept in the user's writable data folder.
-if(NOT EMSCRIPTEN AND NOT ANDROID)
+if(NOT EMSCRIPTEN AND NOT ANDROID AND NOT APE_SWITCH_PORT)
     include(FetchContent)
     FetchContent_Declare(ape_escape_miniaudio
         URL https://github.com/mackron/miniaudio/archive/refs/tags/0.11.22.tar.gz
