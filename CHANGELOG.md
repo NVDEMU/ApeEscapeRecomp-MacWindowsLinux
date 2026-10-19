@@ -5,6 +5,9 @@ All notable changes to Ape Escape Recompiled — Enhanced Edition are recorded h
 
 ## [Unreleased]
 
+### Performance
+- Restore the upstream-tested guest-cycle scaling optimization for crowded gameplay, gated to Ape Escape phase 3 at RAM byte 0x800F447C. Recompiled CPU work is charged at scale 2 while VBlank, timers, CD, SPU, and DMA remain on the original PlayStation clock; menus, intros, and transitions keep normal timing.
+
 ### Fixed
 - Fixed the data-folder button's conflicting ImGui ID and made it open the full user home folder; folder buttons now use unique IDs.
 

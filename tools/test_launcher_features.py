@@ -2,8 +2,37 @@
 """Static integration checks for project-owned launcher features."""
 from pathlib import Path
 import re
+import tomllib
 
 ROOT = Path(__file__).resolve().parents[1]
+
+# Crabby Beach performance guard: the game config and the exact pinned
+# framework source must agree, so a stale framework pin cannot silently ignore
+# the fix while the rest of the app still builds.
+game_config = tomllib.loads((ROOT / "game.toml").read_text(encoding="utf-8"))
+timing = game_config.get("timing", {})
+expected_gate = {"addr": 0x800F447C, "size": 1, "value": 3}
+if timing.get("guest_cycle_scale") != 2:
+    raise SystemExit("Crabby Beach timing configuration must use guest_cycle_scale = 2")
+if timing.get("guest_cycle_scale_gate") != expected_gate:
+    raise SystemExit(
+        "Crabby Beach timing must be gated to phase byte 0x800F447C == 3"
+    )
+framework_config = ROOT / "psxrecomp-v4/recompiler/src/config_loader.cpp"
+framework_cycles = ROOT / "psxrecomp-v4/runtime/src/psx_cycles.c"
+if not framework_config.is_file() or not framework_cycles.is_file():
+    raise SystemExit("Pinned PSXRecomp timing source is missing; cannot verify Crabby Beach fix")
+config_source = framework_config.read_text(encoding="utf-8")
+cycle_source = framework_cycles.read_text(encoding="utf-8")
+if "guest_cycle_scale" not in config_source or "guest_cycle_scale_gate" not in config_source:
+    raise SystemExit(
+        "Pinned PSXRecomp does not support gameplay-gated guest-cycle scaling; update the framework pin"
+    )
+if "psx_guest_cycle_scale_vblank" not in cycle_source:
+    raise SystemExit(
+        "Pinned PSXRecomp lacks the VBlank-evaluated guest-cycle gate needed by Crabby Beach"
+    )
+
 patch = (ROOT / "tools/apply_recomp_ui_update_patch.py").read_text(encoding="utf-8")
 helper = (ROOT / "tools/launcher_extra_views.inc").read_text(encoding="utf-8")
 guide = (ROOT / "docs/MOD_DEVELOPER_TOOLKIT.md").read_text(encoding="utf-8")

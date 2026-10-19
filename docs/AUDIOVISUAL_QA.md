@@ -16,3 +16,14 @@ A source-level review has not established a universal audio/video defect in the 
 5. Save-state/rewind: test whether visual state, current stage, timer and audio resume consistently, repeating each case at least three times.
 
 Compilation alone cannot establish that the game is glitch-free.
+
+## Crabby Beach performance regression
+
+The title's `[timing]` config scales recompiled CPU instruction charging by 2 only when byte `0x800F447C == 3` (active level gameplay). VBlank, timers, CD, SPU and DMA remain on the PlayStation clock. The test suite also verifies that the pinned PSXRecomp parser/runtime implement this gate.
+
+For manual A/B validation after framework or timing changes:
+
+1. Load the same Crabby Beach checkpoint with optional mods disabled. Capture at least 8 seconds of active gameplay and compare delayed frames and cadence against an unscaled build; the upstream's measured target was approximately 30 FPS without delayed gameplay frames.
+2. Confirm title/attract, Professor's stage-select briefing, level flyovers and warp-ins retain the original pacing.
+3. Check music/effects continuity, timer behavior, pause/resume, area transitions, memory-card save/load and save-state save/load.
+4. Treat stage-clear results and in-level boss cutscenes as not yet cleared by this optimization until they receive explicit playtesting.
