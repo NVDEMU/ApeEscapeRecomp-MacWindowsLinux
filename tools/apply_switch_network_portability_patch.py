@@ -108,6 +108,122 @@ def main() -> int:
         )
         overlay_path.write_text(overlay, encoding="utf-8", newline="\n")
 
+    # libnx does not ship POSIX ucontext.h. Add a real cooperative AArch64
+    # fiber backend for Switch rather than stubbing thread switches (the PS1
+    # BIOS scheduler depends on preserving separate stacks).
+    fiber_path = args.framework_root / "runtime" / "src" / "psx_fiber.c"
+    if not fiber_path.is_file():
+        print(f"Switch portability patch: source not found: {fiber_path}", file=sys.stderr)
+        return 2
+    fiber = fiber_path.read_text(encoding="utf-8-sig")
+    fiber_anchor = "#else /* POSIX: ucontext */\\n\\n#ifndef _XOPEN_SOURCE"
+    fiber_backend = r"""#elif defined(PSX_RYUJINX_SDCARD_SCAN) /* Switch: cooperative AArch64 fibers */
+
+#include <stdlib.h>
+#include <stdint.h>
+#include <string.h>
+
+typedef struct psx_fiber_impl {
+    uintptr_t sp;
+    uint64_t x19_x30[12];
+    uint64_t d8_d15[8];
+    void* stack;
+    psx_fiber_entry entry;
+    void* arg;
+} psx_fiber_impl;
+
+static psx_fiber_impl* s_current = NULL;
+
+static void psx_fiber_trampoline(void)
+{
+    psx_fiber_impl* f = s_current;
+    if (!f || !f->entry) abort();
+    f->entry(f->arg);
+    abort();
+}
+
+/* Save/restore AAPCS64 callee-saved integer and FP registers plus SP.
+ * The saved LR doubles as the initial entry PC for a newly created fiber. */
+__attribute__((naked)) static void psx_fiber_switch_asm(psx_fiber_impl* from, psx_fiber_impl* to)
+{
+    __asm__ volatile(
+        "stp x19, x20, [x0, #8]\\n"
+        "stp x21, x22, [x0, #24]\\n"
+        "stp x23, x24, [x0, #40]\\n"
+        "stp x25, x26, [x0, #56]\\n"
+        "stp x27, x28, [x0, #72]\\n"
+        "stp x29, x30, [x0, #88]\\n"
+        "mov x2, sp\\n"
+        "str x2, [x0]\\n"
+        "stp d8, d9, [x0, #104]\\n"
+        "stp d10, d11, [x0, #120]\\n"
+        "stp d12, d13, [x0, #136]\\n"
+        "stp d14, d15, [x0, #152]\\n"
+        "ldr x2, [x1]\\n"
+        "mov sp, x2\\n"
+        "ldp x19, x20, [x1, #8]\\n"
+        "ldp x21, x22, [x1, #24]\\n"
+        "ldp x23, x24, [x1, #40]\\n"
+        "ldp x25, x26, [x1, #56]\\n"
+        "ldp x27, x28, [x1, #72]\\n"
+        "ldp x29, x30, [x1, #88]\\n"
+        "ldp d8, d9, [x1, #104]\\n"
+        "ldp d10, d11, [x1, #120]\\n"
+        "ldp d12, d13, [x1, #136]\\n"
+        "ldp d14, d15, [x1, #152]\\n"
+        "ret\\n"
+    );
+}
+
+psx_fiber_t psx_fiber_convert_thread(void)
+{
+    if (!s_current) {
+        s_current = (psx_fiber_impl*)calloc(1, sizeof(*s_current));
+        if (!s_current) return NULL;
+    }
+    return (psx_fiber_t)s_current;
+}
+psx_fiber_t psx_fiber_current(void) { return (psx_fiber_t)s_current; }
+
+psx_fiber_t psx_fiber_create(size_t stack_size, psx_fiber_entry entry, void* arg)
+{
+    if (stack_size < 16384) stack_size = 16384;
+    psx_fiber_impl* f = (psx_fiber_impl*)calloc(1, sizeof(*f));
+    if (!f) return NULL;
+    f->stack = malloc(stack_size);
+    if (!f->stack) { free(f); return NULL; }
+    f->entry = entry;
+    f->arg = arg;
+    uintptr_t top = ((uintptr_t)f->stack + stack_size) & ~(uintptr_t)15;
+    f->sp = top;
+    f->x19_x30[11] = (uintptr_t)psx_fiber_trampoline; /* x30 at offset 88 */
+    return (psx_fiber_t)f;
+}
+
+void psx_fiber_switch(psx_fiber_t target)
+{
+    psx_fiber_impl* to = (psx_fiber_impl*)target;
+    psx_fiber_impl* from = s_current;
+    if (!to || !from || to == from) return;
+    s_current = to;
+    psx_fiber_switch_asm(from, to);
+}
+
+void psx_fiber_destroy(psx_fiber_t fiber)
+{
+    psx_fiber_impl* f = (psx_fiber_impl*)fiber;
+    if (!f || f == s_current) return;
+    free(f->stack);
+    free(f);
+}
+
+#else /* POSIX: ucontext */
+
+#ifndef _XOPEN_SOURCE""";
+    if (fiber_backend not in fiber:
+        fiber = replace_exactly_once(fiber, fiber_anchor, fiber_backend, "ucontext backend insertion")
+        fiber_path.write_text(fiber, encoding="utf-8", newline="\\n")
+
     source_path.write_text(source, encoding="utf-8", newline="\n")
     print("Applied Switch network and dynamic-overlay portability patches")
     return 0
