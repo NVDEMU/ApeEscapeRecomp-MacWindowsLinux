@@ -25,7 +25,12 @@ PATCH = '''#if defined(PSX_RYUJINX_SDCARD_SCAN)\n    // Experimental Switch/Ryuj
         const std::vector<ape_fs::path> roots = {
             exe_dir / "data",
             exe_dir / "sdcard" / "switch" / "ApeEscapeRecomp" / "data",
+            // Ryujinx's configured virtual SD root is exposed as sdmc:/ to
+            // guest homebrew; some test/runtime wrappers also expose a host-like
+            // /sdcard tree. Check the title folder and the whole SD root.
             ape_fs::path("/sdcard/switch/ApeEscapeRecomp/data"),
+            ape_fs::path("/sdcard/switch/ApeEscapeRecomp"),
+            ape_fs::path("/sdcard/switch"),
             ape_fs::path("/sdcard"),
             ape_fs::path("sdmc:/switch/ApeEscapeRecomp/data"),
             ape_fs::path("/switch/ApeEscapeRecomp/data"),
@@ -55,38 +60,46 @@ PATCH = '''#if defined(PSX_RYUJINX_SDCARD_SCAN)\n    // Experimental Switch/Ryuj
             }
         }
 
-        // Accommodate user-renamed images inside the title's known data folders
-        // without recursively scanning the entire SD card.
+        // Accommodate user-renamed images in the Ryujinx virtual SD card.
+        // Search only a shallow, bounded depth so a large SD card cannot stall
+        // startup. Duplicate roots are harmless; inaccessible paths are ignored.
         for (const auto& root : roots) {
             ape_ec.clear();
             if (!ape_fs::is_directory(root, ape_ec)) continue;
-            for (ape_fs::directory_iterator it(root, ape_ec), end; !ape_ec && it != end;
-                 it.increment(ape_ec)) {
-                if (it->is_directory(ape_ec)) continue;
-                const std::string ext = it->path().extension().string();
-                std::string lower_ext = ext;
-                for (char& ch : lower_ext)
-                    ch = (char)std::tolower((unsigned char)ch);
-                if (lower_ext != ".cue" && lower_ext != ".bin" &&
-                    lower_ext != ".chd" && lower_ext != ".img" &&
-                    lower_ext != ".iso" && lower_ext != ".car")
-                    continue;
-                std::string filename = it->path().filename().string();
-                std::string lower_name = filename;
-                for (char& ch : lower_name)
-                    ch = (char)std::tolower((unsigned char)ch);
-                if (lower_name.find("ape") == std::string::npos &&
-                    lower_name.find("scus_944") == std::string::npos)
-                    continue;
-                const ape_fs::path normalized = normalize_disc_path_for_launch(it->path());
-                ape_ec.clear();
-                if (ape_fs::exists(normalized, ape_ec) &&
-                    validate_disc_for_launch(normalized, game_id)) {
-                    std::fprintf(stderr, "psxrecomp: found game disc via SD-card scan: %s\\n",
-                                 normalized.string().c_str());
-                    write_cached_path(argv0, "disc.cfg", normalized);
-                    return normalized;
+            ape_fs::recursive_directory_iterator it(
+                root, ape_fs::directory_options::skip_permission_denied, ape_ec), end;
+            while (!ape_ec && it != end) {
+                if (it.depth() >= 4 && it->is_directory(ape_ec))
+                    it.disable_recursion_pending();
+                if (!it->is_directory(ape_ec)) {
+                    const std::string ext = it->path().extension().string();
+                    std::string lower_ext = ext;
+                    for (char& ch : lower_ext)
+                        ch = (char)std::tolower((unsigned char)ch);
+                    if (lower_ext == ".cue" || lower_ext == ".bin" ||
+                        lower_ext == ".chd" || lower_ext == ".img" ||
+                        lower_ext == ".iso" || lower_ext == ".car") {
+                        std::string filename = it->path().filename().string();
+                        std::string lower_name = filename;
+                        for (char& ch : lower_name)
+                            ch = (char)std::tolower((unsigned char)ch);
+                        if (lower_name.find("ape") != std::string::npos ||
+                            lower_name.find("scus_944") != std::string::npos) {
+                            const ape_fs::path normalized =
+                                normalize_disc_path_for_launch(it->path());
+                            ape_ec.clear();
+                            if (ape_fs::exists(normalized, ape_ec) &&
+                                validate_disc_for_launch(normalized, game_id)) {
+                                std::fprintf(stderr,
+                                    "psxrecomp: found game disc via SD-card scan: %s\\n",
+                                    normalized.string().c_str());
+                                write_cached_path(argv0, "disc.cfg", normalized);
+                                return normalized;
+                            }
+                        }
+                    }
                 }
+                it.increment(ape_ec);
             }
         }
     }
