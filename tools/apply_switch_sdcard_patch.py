@@ -99,10 +99,11 @@ PATCH = '''#if defined(PSX_RYUJINX_SDCARD_SCAN)\n    // Experimental Switch/Ryuj
                         }
                     }
                 }
-                it.increment(ape_ec);
+                        it.increment(ape_ec);
             }
         }
     }
+#endif
 
 '''
 def main() -> int:
