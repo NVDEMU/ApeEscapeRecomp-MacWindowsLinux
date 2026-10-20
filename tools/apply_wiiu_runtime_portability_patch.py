@@ -53,11 +53,12 @@ if(APE_WIIU_PORT)
         ${PSXRECOMP_ROOT}/runtime/src/gpu_gl_renderer.c
         ${PSXRECOMP_ROOT}/runtime/src/gpu_vk_renderer.c)
 endif()"""
-        new_block_cmake = """# Wii U portability: retain renderer APIs and add the GL link shim.
+        new_block_cmake = """# Wii U portability: retain renderer APIs, GL shim, atomic helpers and fiber assembly.
 if(APE_WIIU_PORT)
     list(APPEND PSXRECOMP_RUNTIME_SOURCES
         ${PSXRECOMP_ROOT}/runtime/src/gpu_gl_wiiu_shim.c
-        ${PSXRECOMP_ROOT}/runtime/src/psx_fiber_switch_wiiu.S)
+        ${PSXRECOMP_ROOT}/runtime/src/psx_fiber_switch_wiiu.S
+        ${PSXRECOMP_ROOT}/runtime/src/wiiu_atomic_8.c)
 endif()"""
         cmake = replace_once(cmake, old_block, new_block_cmake, "renderer source-list patch")
     elif new_marker not in cmake:
@@ -67,12 +68,77 @@ endif()"""
 if(APE_WIIU_PORT)
     list(APPEND PSXRECOMP_RUNTIME_SOURCES
         ${PSXRECOMP_ROOT}/runtime/src/gpu_gl_wiiu_shim.c
-        ${PSXRECOMP_ROOT}/runtime/src/psx_fiber_switch_wiiu.S)
+        ${PSXRECOMP_ROOT}/runtime/src/psx_fiber_switch_wiiu.S
+        ${PSXRECOMP_ROOT}/runtime/src/wiiu_atomic_8.c)
 endif()
 # TCP `disasm` command only (debug_server.c); stripped with the rest of the TCP
 """
         insertion = insertion.replace(") \n", ")\n")
         cmake = replace_once(cmake, anchor, insertion, "runtime source-list close")
+
+    # devkitPPC's bare-metal runtime does not provide libatomic's 64-bit
+    # helper entrypoints. GCC lowers these 64-bit operations to calls; serialize
+    # them through a 32-bit PowerPC reservation-based spinlock.
+    atomic_path = root / "runtime" / "src" / "wiiu_atomic_8.c"
+    atomic_marker = "Wii U 64-bit GCC atomic ABI shims"
+    atomic_source = r'''/* Wii U 64-bit GCC atomic ABI shims.
+ *
+ * devkitPPC doesn't ship libatomic for these 64-bit operations. The PowerPC
+ * 32-bit target supports reservation-based 32-bit lock operations, so protect
+ * the 64-bit load/store/fetch-add operations with one process-wide spinlock.
+ * All memory orders are implemented with stronger sequentially consistent
+ * ordering. These helpers are for runtime-internal 64-bit telemetry/counters.
+ */
+#include <stdint.h>
+
+static volatile uint32_t s_wiiu_atomic_lock_word;
+
+static void wiiu_atomic_lock(void)
+{
+    while (__sync_lock_test_and_set(&s_wiiu_atomic_lock_word, 1u)) {
+        while (s_wiiu_atomic_lock_word) {
+            __asm__ volatile("" ::: "memory");
+        }
+    }
+    __sync_synchronize();
+}
+
+static void wiiu_atomic_unlock(void)
+{
+    __sync_synchronize();
+    __sync_lock_release(&s_wiiu_atomic_lock_word);
+}
+
+uint64_t __atomic_load_8(const volatile void *ptr, int memory_order)
+{
+    (void)memory_order;
+    wiiu_atomic_lock();
+    uint64_t value = *(const volatile uint64_t *)ptr;
+    wiiu_atomic_unlock();
+    return value;
+}
+
+void __atomic_store_8(volatile void *ptr, uint64_t value, int memory_order)
+{
+    (void)memory_order;
+    wiiu_atomic_lock();
+    *(volatile uint64_t *)ptr = value;
+    wiiu_atomic_unlock();
+}
+
+uint64_t __atomic_fetch_add_8(volatile void *ptr, uint64_t value, int memory_order)
+{
+    (void)memory_order;
+    wiiu_atomic_lock();
+    volatile uint64_t *target = (volatile uint64_t *)ptr;
+    uint64_t previous = *target;
+    *target = previous + value;
+    wiiu_atomic_unlock();
+    return previous;
+}
+'''
+    if not atomic_path.is_file() or atomic_marker not in atomic_path.read_text(encoding="utf-8-sig"):
+        atomic_path.write_text(atomic_source, encoding="utf-8", newline="\n")
 
     # Never enable the real Vulkan backend on the Wii U toolchain. Keep its
     # source file so it contributes its upstream inert API stubs.
