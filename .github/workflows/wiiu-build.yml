@@ -12,43 +12,95 @@ permissions:
 
 jobs:
   build-wiiu:
-    runs-on: ubuntu-latest
-    container:
-      image: devkitpro/devkitppc:latest
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    env:
+      BUILD_JOBS: 2
+
     steps:
       - name: Check out game and pinned runtime
         uses: actions/checkout@v4
         with:
           submodules: recursive
+          fetch-depth: 0
 
-      - name: Install Wii U SDL2 and WUT packages
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install host, disc and Wii U toolchains
         shell: bash
         run: |
-          dkp-pacman -Syu --noconfirm
-          dkp-pacman -S --needed --noconfirm wiiu-dev wiiu-sdl2
-          export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
-          export WUT_ROOT="${WUT_ROOT:-$DEVKITPRO/wut}"
-          echo "DEVKITPRO=$DEVKITPRO"
-          echo "WUT_ROOT=$WUT_ROOT"
-          test -x "$DEVKITPRO/portlibs/wiiu/bin/powerpc-eabi-cmake"
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build ccache pkg-config mame-tools curl ca-certificates gnupg \
+            libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxext-dev libxrandr-dev \
+            libxcursor-dev libxi-dev libxtst-dev libxfixes-dev libxss-dev libwayland-dev \
+            libxkbcommon-dev libasound2-dev libpulse-dev libudev-dev libdrm-dev libgbm-dev
+          command -v chdman
+
+          curl -fsSL https://apt.devkitpro.org/devkitpro-pub.gpg | sudo gpg --dearmor --yes -o /usr/share/keyrings/devkitpro.gpg
+          echo "deb [signed-by=/usr/share/keyrings/devkitpro.gpg] https://apt.devkitpro.org stable main" | sudo tee /etc/apt/sources.list.d/devkitpro.list
+          sudo apt-get update
+          sudo apt-get install -y devkitpro-pacman
+          sudo dkp-pacman-key --init
+          sudo dkp-pacman -Syu --needed --noconfirm wiiu-dev wiiu-sdl2
+
+          echo "DEVKITPRO=/opt/devkitpro" >> "$GITHUB_ENV"
+          echo "DEVKITPPC=/opt/devkitpro/devkitPPC" >> "$GITHUB_ENV"
+          echo "DEVKITARM=/opt/devkitpro/devkitARM" >> "$GITHUB_ENV"
+          test -x /opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-cmake
+          test -x /opt/devkitpro/devkitPPC/bin/powerpc-eabi-gcc
+
+      - name: Download and validate the original disc privately
+        env:
+          GAME_ASSETS_TOKEN: ${{ secrets.GAME_ASSETS_TOKEN }}
+          GAME_ASSETS_REPO: NVDEMU/apeescapeprivateassets
+          GAME_ASSETS_TAG: thing
+          GAME_ASSETS_FILENAME: Ape.Escape.USA.chd
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ape-disc" apeescape
+          python3 tools/download_disc.py "$RUNNER_TEMP/Ape Escape (USA).chd"
+          chdman verify -i "$RUNNER_TEMP/Ape Escape (USA).chd"
+
+      - name: Build the host recompiler and bundled OpenBIOS
+        run: |
+          set -euo pipefail
+          cmake -S psxrecomp-v4/recompiler -B psxrecomp-v4/recompiler/build-wiiu-host -G Ninja \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_C_COMPILER_LAUNCHER=ccache \
+            -DCMAKE_CXX_COMPILER_LAUNCHER=ccache
+          cmake --build psxrecomp-v4/recompiler/build-wiiu-host --parallel "$BUILD_JOBS" \
+            --target psxrecomp-game psxrecomp-bios
+          (cd psxrecomp-v4 && PSXRECOMP_BIOS_BUILD=recompiler/build-wiiu-host bash tools/regen_bios.sh --config bios/OpenBIOS.toml)
+
+      - name: Prepare the disc and generate Ape Escape C translation
+        run: |
+          set -euo pipefail
+          chdman extractcd \
+            -i "$RUNNER_TEMP/Ape Escape (USA).chd" \
+            -o "$RUNNER_TEMP/Ape Escape (USA).cue" \
+            -ob "$RUNNER_TEMP/Ape Escape (USA).bin"
+          python3 psxrecomp-v4/tools/prepare_disc.py "$RUNNER_TEMP/Ape Escape (USA).cue" --config game.toml
+          test -s apeescape/SCUS_944.23
+          psxrecomp-v4/recompiler/build-wiiu-host/psxrecomp-game --config game.toml
+          test -s generated/SCUS_944.23_dispatch.c
+          find generated -maxdepth 1 -type f -name 'SCUS_944.23_full*' -size +0c | grep -q .
 
       - name: Configure native Wii U build
         shell: bash
         run: |
-          export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
-          export WUT_ROOT="${WUT_ROOT:-$DEVKITPRO/wut}"
-          "$DEVKITPRO/portlibs/wiiu/bin/powerpc-eabi-cmake" \
-            -S . -B build-wiiu \
+          set -euo pipefail
+          /opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-cmake \
+            -S . -B build-wiiu -G Ninja \
             -DCMAKE_BUILD_TYPE=Release \
             -DBUILD_TESTING=OFF \
             -DAPE_WIIU_PORT=ON
 
       - name: Compile the recompiled Ape Escape runtime
-        shell: bash
-        run: |
-          export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
-          export WUT_ROOT="${WUT_ROOT:-$DEVKITPRO/wut}"
-          cmake --build build-wiiu --parallel 2
+        run: cmake --build build-wiiu --parallel "$BUILD_JOBS"
 
       - name: Verify and stage RPX
         shell: bash
