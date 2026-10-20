@@ -447,6 +447,37 @@ static __thread int t_render;
         render_thread = replace_once(render_thread, old_tick, new_tick, "render-thread deadline guard")
         write_text(render_thread_path, render_thread)
 
+    # host_launch_timing.h used an inline function-local thread_local parent,
+    # which GCC lowers to Cafe OS-unsupported R_PPC_TPREL relocations in every
+    # includer. Preserve per-thread parent tracking with a synchronized map keyed
+    # by std::thread::id on Wii U; other platforms retain their native TLS fast path.
+    launch_timing_path = root / "runtime" / "include" / "host_launch_timing.h"
+    launch_timing = read_text(launch_timing_path)
+    launch_timing_marker = "/* Wii U portability: per-thread launch timing parent without ELF TLS. */"
+    if launch_timing_marker not in launch_timing:
+        old_includes = """#include <cstring>\n#include <mutex>"""
+        new_includes = """#include <cstring>\n#include <mutex>\n#if defined(PSX_APE_WIIU_PORT)\n#include <map>\n#include <thread>\n#endif"""
+        launch_timing = replace_once(
+            launch_timing, old_includes, new_includes, "launch timing thread-map includes"
+        )
+        old_parent = """inline HostLaunchTimingParent& host_launch_timing_parent() {\n    static thread_local HostLaunchTimingParent parent{};\n    return parent;\n}"""
+        new_parent = """inline HostLaunchTimingParent& host_launch_timing_parent() {
+#if defined(PSX_APE_WIIU_PORT)
+    /* Wii U portability: per-thread launch timing parent without ELF TLS. */
+    static std::mutex parents_mutex;
+    static std::map<std::thread::id, HostLaunchTimingParent> parents;
+    std::lock_guard<std::mutex> lock(parents_mutex);
+    return parents[std::this_thread::get_id()];
+#else
+    static thread_local HostLaunchTimingParent parent{};
+    return parent;
+#endif
+}"""
+        launch_timing = replace_once(
+            launch_timing, old_parent, new_parent, "launch timing TLS parent"
+        )
+        write_text(launch_timing_path, launch_timing)
+
     print("Applied Wii U software-renderer, GL-link, overlay-compiler, BIOS-builder, derived-disc, and clock portability patches")
     return 0
 
