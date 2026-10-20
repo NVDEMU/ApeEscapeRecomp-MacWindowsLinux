@@ -75,6 +75,11 @@ endif()
 option(APE_WIIU_PORT "Enable the experimental native Nintendo Wii U port" OFF)
 if(APE_WIIU_PORT)
     set(PSX_SDL_BACKEND "SDL2" CACHE STRING "SDL backend for Wii U" FORCE)
+    # The shared recomp-ui launcher links desktop OpenGL, which Cafe OS does
+    # not provide. Bring up the actual game runtime first; launcher UI parity
+    # is deliberately deferred until the Wii U renderer/input baseline works.
+    set(PSX_RECOMP_UI OFF CACHE BOOL "Disable desktop OpenGL launcher UI on Wii U" FORCE)
+    set(PSX_SETUP_WIZARD OFF CACHE BOOL "Disable desktop setup wizard on Wii U" FORCE)
     add_compile_definitions(PSX_APE_WIIU_PORT=1)
     # Cafe OS has no desktop dlopen/process-launch environment; overlays are
     # interpreted, external BIOS-module builds and xdelta-based disc mods are disabled.
