@@ -368,6 +368,35 @@ const char *autocompile_degraded_reason(void) {
         main = replace_once(main, anchor, replacement, "Wii U software-renderer selection")
         write_text(main_path, main)
 
+    # Wii U SDL2's software presenter is the proven baseline: the control RPX
+    # explicitly creates this renderer successfully under Cemu. The generic
+    # runtime tries accelerated presentation twice and otherwise exits; Cafe OS
+    # must use the known-good software path rather than relying on a host GPU
+    # renderer backend.
+    sdl_present_marker = "/* Wii U portability: use the tested SDL2 software presenter. */"
+    if sdl_present_marker not in main:
+        old_sdl_present = """    Uint32 rflags = SDL_RENDERER_ACCELERATED |
+                    (present_effective_swap_interval() != 0
+                         ? SDL_RENDERER_PRESENTVSYNC : 0u);
+    sdl_renderer = SDL_CreateRenderer(sdl_window, -1, rflags);
+    if (!sdl_renderer)
+        sdl_renderer = SDL_CreateRenderer(sdl_window, -1, SDL_RENDERER_ACCELERATED);"""
+        new_sdl_present = """#if defined(PSX_APE_WIIU_PORT)
+    /* Wii U portability: use the tested SDL2 software presenter. */
+    sdl_renderer = SDL_CreateRenderer(sdl_window, -1, SDL_RENDERER_SOFTWARE);
+#else
+    Uint32 rflags = SDL_RENDERER_ACCELERATED |
+                    (present_effective_swap_interval() != 0
+                         ? SDL_RENDERER_PRESENTVSYNC : 0u);
+    sdl_renderer = SDL_CreateRenderer(sdl_window, -1, rflags);
+    if (!sdl_renderer)
+        sdl_renderer = SDL_CreateRenderer(sdl_window, -1, SDL_RENDERER_ACCELERATED);
+#endif"""
+        main = replace_once(
+            main, old_sdl_present, new_sdl_present, "SDL2 Wii U software presenter"
+        )
+        write_text(main_path, main)
+
     # Mods that materialize a derived disc currently launch an external xdelta
     # process (fork/exec/waitpid). Disable only that optional operation on Wii U.
     mod_path = root / "runtime" / "src" / "mod_runtime.cpp"
