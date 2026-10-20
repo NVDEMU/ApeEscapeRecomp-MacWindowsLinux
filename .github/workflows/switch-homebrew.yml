@@ -11,6 +11,7 @@ on:
       - 'tools/switch/**'
       - 'tools/apply_switch_network_portability_patch.py'
       - 'tools/apply_switch_sdcard_patch.py'
+      - 'tools/apply_switch_runtime_portability_patch.py'
       - '.github/workflows/switch-homebrew.yml'
       - 'psxrecomp-v4'
 permissions:
