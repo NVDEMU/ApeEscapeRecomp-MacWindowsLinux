@@ -76,6 +76,13 @@ option(APE_WIIU_PORT "Enable the experimental native Nintendo Wii U port" OFF)
 if(APE_WIIU_PORT)
     enable_language(ASM)
     set(PSX_SDL_BACKEND "SDL2" CACHE STRING "SDL backend for Wii U" FORCE)
+    # Cafe OS RPX files cannot use ELF TLS local-exec relocations, and PIC
+    # libraries can emit PLT/LOCAL24PC relocation types rejected by elf2rpl.
+    # Build dependencies as non-PIC code; only the final RPX is relocated by WUT.
+    set(BUILD_SHARED_LIBS OFF CACHE BOOL "Wii U port uses static dependencies" FORCE)
+    set(CMAKE_POSITION_INDEPENDENT_CODE OFF)
+    string(APPEND CMAKE_C_FLAGS " -fno-pic -fno-pie")
+    string(APPEND CMAKE_CXX_FLAGS " -fno-pic -fno-pie")
     # The shared recomp-ui launcher links desktop OpenGL, which Cafe OS does
     # not provide. Bring up the actual game runtime first; launcher UI parity
     # is deliberately deferred until the Wii U renderer/input baseline works.
@@ -192,6 +199,34 @@ psxrecomp_add_runtime_target(psx-runtime
     PRELOADED_MODS_DIR "${APE_PRELOADED_MODS}"
 )
 
+# Static dependencies in the Wii U tree must not be built as PIC. The generic
+# helper walks every CMake subdirectory, disabling the property and adding a
+# final -fno-pic/-fno-pie so dependencies with explicit compile flags comply.
+if(APE_WIIU_PORT)
+    function(ape_wiiu_disable_pic_recursive directory)
+        get_property(_targets DIRECTORY "${directory}" PROPERTY BUILDSYSTEM_TARGETS)
+        foreach(_target IN LISTS _targets)
+            get_target_property(_imported "${_target}" IMPORTED)
+            get_target_property(_type "${_target}" TYPE)
+            if(NOT _imported AND (_type STREQUAL "STATIC_LIBRARY" OR
+                                  _type STREQUAL "OBJECT_LIBRARY" OR
+                                  _type STREQUAL "EXECUTABLE"))
+                set_target_properties("${_target}" PROPERTIES POSITION_INDEPENDENT_CODE OFF)
+                target_compile_options("${_target}" PRIVATE -fno-pic -fno-pie)
+            endif()
+        endforeach()
+        get_property(_subdirs DIRECTORY "${directory}" PROPERTY SUBDIRECTORIES)
+        foreach(_subdir IN LISTS _subdirs)
+            ape_wiiu_disable_pic_recursive("${_subdir}")
+        endforeach()
+    endfunction()
+    ape_wiiu_disable_pic_recursive("${CMAKE_BINARY_DIR}")
+    # stb_image's thread-local option flags are not used by this runtime and
+    # must fall back to its global flags because Cafe OS lacks ELF TLS support.
+    target_compile_definitions(psx-runtime PRIVATE STBI_NO_THREAD_LOCALS=1)
+    target_compile_options(psx-runtime PRIVATE -fno-pic -fno-pie)
+endif()
+
 
 # On Wii U the native output is an RPX. Aroma can launch RPX homebrew from SD,
 # and Cemu can load the same file directly for rapid school-time testing.
@@ -200,16 +235,6 @@ if(APE_WIIU_PORT)
         message(FATAL_ERROR "WUT's wut_create_rpx() is unavailable; use the devkitPro Wii U toolchain.")
     endif()
     set_target_properties(psx-runtime PROPERTIES OUTPUT_NAME "ApeEscapeRecomp")
-    # elf2rpl only accepts Cafe OS-supported relocation forms. The generic GCC
-    # local-exec TLS model emits R_PPC_TPREL16_* (70/72), while PLT calls emit
-    # R_PPC_PLTREL24 (18) / R_PPC_LOCAL24PC (23), which elf2rpl rejects.
-    # Use dynamic TLS relocations supported by the RPL loader and avoid PLT
-    # branch relocations for this console target.
-    target_compile_options(psx-runtime PRIVATE
-        -mno-plt
-        -fno-plt
-        -ftls-model=global-dynamic
-    )
     wut_create_rpx(psx-runtime)
 endif()
 
