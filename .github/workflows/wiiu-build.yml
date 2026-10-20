@@ -187,13 +187,18 @@ jobs:
             -o "$RUNNER_TEMP/cemu.zip"
           echo "$CEMU_RELEASE_SHA256  $RUNNER_TEMP/cemu.zip" | sha256sum --check
           unzip -q "$RUNNER_TEMP/cemu.zip" -d "$RUNNER_TEMP/cemu"
-          CEMU_BIN="$(find "$RUNNER_TEMP/cemu" -type f -perm -u+x \
+          # ZIP extraction does not reliably preserve executable bits for all
+          # Cemu release archives. Locate the verified binary by name first,
+          # then set its executable bit explicitly before the smoke test.
+          CEMU_BIN="$(find "$RUNNER_TEMP/cemu" -type f \
             \( -name Cemu -o -name cemu \) -print -quit)"
           if [ -z "$CEMU_BIN" ]; then
-            echo "::error::Could not find the Cemu executable in the verified release archive."
+            echo "::error::Could not find the Cemu binary in the verified release archive."
             find "$RUNNER_TEMP/cemu" -maxdepth 3 -type f | sort | head -n 100
             exit 1
           fi
+          chmod u+x "$CEMU_BIN"
+          test -x "$CEMU_BIN"
           echo "CEMU_BIN=$CEMU_BIN" >> "$GITHUB_ENV"
           mkdir -p "$(dirname "$CEMU_BIN")/portable" "$(dirname "$CEMU_BIN")/mlc01"
           "$CEMU_BIN" --version || true
