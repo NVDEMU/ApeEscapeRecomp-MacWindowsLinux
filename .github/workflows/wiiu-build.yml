@@ -138,8 +138,30 @@ jobs:
           for file in "${RPX_FILES[@]}"; do
             cp "$file" "wiiu-artifact/$(basename "$file")"
           done
+
+          # An RPX is not a self-contained game package: the runtime resolves
+          # game.toml next to argv[0], and OpenBIOS + the default mod catalog
+          # are staged beside the target by psxrecomp_add_runtime_target().
+          # Copy these non-game assets into the artifact or Cemu starts the
+          # bare runtime without this title's game configuration and BIOS.
+          cp game.toml wiiu-artifact/game.toml
+          RUNTIME_DIR="$(dirname "${RPX_FILES[0]}")"
+          for sidecar in bios mods assets; do
+            SIDE_DIR="$RUNTIME_DIR/$sidecar"
+            if [ ! -d "$SIDE_DIR" ] && [ -d "build-wiiu/$sidecar" ]; then
+              SIDE_DIR="build-wiiu/$sidecar"
+            fi
+            if [ -d "$SIDE_DIR" ]; then
+              cp -R "$SIDE_DIR" "wiiu-artifact/$sidecar"
+            fi
+          done
+
+          # These two are required by the runtime's default BIOS resolver.
+          test -s wiiu-artifact/bios/openbios.bin
+          test -s wiiu-artifact/bios/OpenBIOS.LICENSE
+          test -s wiiu-artifact/game.toml
           cp docs/WIIU_PORT.md wiiu-artifact/README.txt
-          sha256sum wiiu-artifact/*
+          find wiiu-artifact -type f -print0 | sort -z | xargs -0 sha256sum
 
       - name: Upload Wii U homebrew build
         uses: actions/upload-artifact@v4
