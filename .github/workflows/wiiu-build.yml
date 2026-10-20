@@ -87,6 +87,12 @@ jobs:
             devkitpro/devkitppc:latest \
             bash -lc '
               set -euo pipefail
+              # The bind-mounted checkout is owned by the host runner UID.
+              # Explicitly trust this source tree so revision-pinned patch scripts
+              # can verify the nested PSXRecomp submodule while running as container root.
+              git config --global --add safe.directory /src
+              git config --global --add safe.directory /src/psxrecomp-v4
+              git -C /src/psxrecomp-v4 rev-parse --verify HEAD
               dkp-pacman -Syu --noconfirm
               dkp-pacman -S --needed --noconfirm wiiu-dev wiiu-sdl2
               export DEVKITPRO=/opt/devkitpro
