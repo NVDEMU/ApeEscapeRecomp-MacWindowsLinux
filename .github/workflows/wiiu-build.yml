@@ -109,7 +109,19 @@ jobs:
                 -DPSX_SETUP_WIZARD:BOOL=OFF \
                 -DPSX_DEBUG_TOOLS:BOOL=OFF \
                 -DAPE_WIIU_PORT=ON
-              cmake --build /src/build-wiiu --parallel 2
+              if ! cmake --build /src/build-wiiu --parallel 2; then
+                echo "::group::Objects still emitting unsupported Cafe OS TLS relocations"
+                READELF="$(command -v powerpc-eabi-readelf || command -v readelf)"
+                find /src/build-wiiu -type f -name '*.o' -print0 |
+                  while IFS= read -r -d '' object; do
+                    matches="$("$READELF" -rW "$object" 2>/dev/null | grep -E 'R_PPC_TPREL(16_(HA|LO)|16|32)' || true)"
+                    if [ -n "$matches" ]; then
+                      printf '\\n== %s ==\\n%s\\n' "$object" "$matches"
+                    fi
+                  done
+                echo "::endgroup::"
+                exit 1
+              fi
             '
 
       - name: Verify and stage RPX
