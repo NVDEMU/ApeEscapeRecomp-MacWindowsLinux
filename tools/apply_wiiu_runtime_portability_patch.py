@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Apply compile-time Wii U/Cafe OS portability fixes to the pinned psxrecomp runtime.
 
-Only the experimental APE_SWITCH_PORT build invokes this script. It deliberately
+Only the experimental APE_WIIU_PORT build invokes this script. It deliberately
 selects the existing software GPU rasterizer and disables host-only helpers that
 require desktop OpenGL, POSIX process spawning, or dynamic BIOS-module building.
 The patches are idempotent and fail closed if the pinned source changes.
@@ -48,13 +48,13 @@ def main() -> int:
     new_marker = "# Wii U portability: retain renderer APIs and add the GL link shim."
     if old_marker in cmake:
         old_block = """# Wii U portability: exclude host GL/Vulkan renderers on Cafe OS.
-if(APE_SWITCH_PORT)
+if(APE_WIIU_PORT)
     list(REMOVE_ITEM PSXRECOMP_RUNTIME_SOURCES
         ${PSXRECOMP_ROOT}/runtime/src/gpu_gl_renderer.c
         ${PSXRECOMP_ROOT}/runtime/src/gpu_vk_renderer.c)
 endif()"""
         new_block_cmake = """# Wii U portability: retain renderer APIs and add the GL link shim.
-if(APE_SWITCH_PORT)
+if(APE_WIIU_PORT)
     list(APPEND PSXRECOMP_RUNTIME_SOURCES
         ${PSXRECOMP_ROOT}/runtime/src/gpu_gl_Wii U_shim.c)
 endif()"""
@@ -63,7 +63,7 @@ endif()"""
         anchor = ")\n# TCP `disasm` command only (debug_server.c); stripped with the rest of the TCP\n"
         insertion = """) 
 # Wii U portability: retain renderer APIs and add the GL link shim.
-if(APE_SWITCH_PORT)
+if(APE_WIIU_PORT)
     list(APPEND PSXRECOMP_RUNTIME_SOURCES
         ${PSXRECOMP_ROOT}/runtime/src/gpu_gl_Wii U_shim.c)
 endif()
@@ -75,7 +75,7 @@ endif()
     # Never enable the real Vulkan backend on the Wii U toolchain. Keep its
     # source file so it contributes its upstream inert API stubs.
     old_vk_option = 'option(PSX_ENABLE_VULKAN "Build the Vulkan renderer backend when SDK tools are available" ON)'
-    new_vk_option = """if(APE_SWITCH_PORT)
+    new_vk_option = """if(APE_WIIU_PORT)
     option(PSX_ENABLE_VULKAN "Build the Vulkan renderer backend when SDK tools are available" OFF)
 else()
     option(PSX_ENABLE_VULKAN "Build the Vulkan renderer backend when SDK tools are available" ON)
