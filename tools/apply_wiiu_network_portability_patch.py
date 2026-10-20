@@ -145,6 +145,27 @@ def main() -> int:
         debug = debug[:insert_at + 1] + debug_compat + debug[insert_at + 1:]
         debug_path.write_text(debug, encoding="utf-8", newline="\n")
 
+    # Cafe OS's socket layer does not declare SO_SNDTIMEO. Keep the optional
+    # debug-send helper in its original nonblocking mode on Wii U; its total
+    # send budget remains enforced by the existing loop.
+    debug_timeout_marker = "/* Wii U portability: SO_SNDTIMEO is unavailable on Cafe OS. */"
+    if debug_timeout_marker not in debug:
+        old_timeout = """    int flags = fcntl(sock, F_GETFL, 0);
+    fcntl(sock, F_SETFL, flags & ~O_NONBLOCK);
+    struct timeval tmo = { 2, 0 };
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tmo, sizeof(tmo));"""
+        new_timeout = """    int flags = fcntl(sock, F_GETFL, 0);
+#if !defined(PSX_APE_WIIU_PORT)
+    fcntl(sock, F_SETFL, flags & ~O_NONBLOCK);
+    struct timeval tmo = { 2, 0 };
+    setsockopt(sock, SOL_SOCKET, SO_SNDTIMEO, &tmo, sizeof(tmo));
+#else
+    /* Wii U portability: SO_SNDTIMEO is unavailable on Cafe OS.
+     * Keep the socket in its original nonblocking mode. */
+#endif"""
+        debug = replace_exactly_once(debug, old_timeout, new_timeout, "Wii U send timeout guard")
+        debug_path.write_text(debug, encoding="utf-8", newline="\\n")
+
     # Cafe OS does not ship POSIX ucontext.h. Add a real cooperative PowerPC
     # fiber backend for Wii U rather than stubbing thread Wii Ues (the PS1
     # BIOS scheduler depends on preserving separate stacks).
