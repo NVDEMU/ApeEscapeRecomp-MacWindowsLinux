@@ -112,8 +112,8 @@ jobs:
               if ! cmake --build /src/build-wiiu --parallel 2; then
                 echo "::group::Objects still emitting unsupported Cafe OS TLS relocations"
                 READELF="$(command -v powerpc-eabi-readelf || command -v readelf)"
-                find /src/build-wiiu -type f -name "*.o" -print0 |
-                  while IFS= read -r -d '' object; do
+                find /src/build-wiiu -type f -name "*.o" -print |
+                  while IFS= read -r object; do
                     matches="$("$READELF" -rW "$object" 2>/dev/null | grep -E "R_PPC_TPREL(16_(HA|LO)|16|32)" || true)"
                     if [ -n "$matches" ]; then
                       printf "\\n== %s ==\\n%s\\n" "$object" "$matches"
