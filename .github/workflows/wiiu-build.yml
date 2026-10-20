@@ -531,11 +531,25 @@ jobs:
               echo "Started Cemu (PID $CEMU_PID) with RPX: $RPX_TO_LAUNCH"
               echo "Virtual SD mount: $CEMU_SD_ROOT -> /vol/external01/"
           
-              sleep 15
+              sleep 2
+              if import -window root -silent "$CEMU_TEST_OUTPUT/cemu-after-2s.png" 2>>"$SCREENSHOT_ERRORS"; then
+                echo "Captured Cemu display after 2 seconds."
+              else
+                echo "Could not capture the 2-second screenshot; see screenshot-errors.log."
+              fi
+
+              sleep 3
+              if import -window root -silent "$CEMU_TEST_OUTPUT/cemu-after-5s.png" 2>>"$SCREENSHOT_ERRORS"; then
+                echo "Captured Cemu display after 5 seconds."
+              else
+                echo "Could not capture the 5-second screenshot; see screenshot-errors.log."
+              fi
+
+              sleep 10
               if ! kill -0 "$CEMU_PID" 2>/dev/null; then
                 wait "$CEMU_PID"
                 CEMU_STATUS=$?
-                echo "Cemu exited before the first screenshot (exit $CEMU_STATUS)."
+                echo "Cemu exited before the 15-second screenshot (exit $CEMU_STATUS)."
                 exit 1
               fi
               if import -window root -silent "$CEMU_TEST_OUTPUT/cemu-after-15s.png" 2>>"$SCREENSHOT_ERRORS"; then
@@ -591,12 +605,10 @@ jobs:
             echo "::warning::No explicit SD-card disc-discovery message appeared in Cemu's forwarded log. Inspect the uploaded log and screenshots."
           fi
 
-          if [ -f "$RUNNER_TEMP/cemu-test-output/cemu-after-15s.png" ]; then
-            file "$RUNNER_TEMP/cemu-test-output/cemu-after-15s.png"
-          fi
-          if [ -f "$RUNNER_TEMP/cemu-test-output/cemu-after-45s.png" ]; then
-            file "$RUNNER_TEMP/cemu-test-output/cemu-after-45s.png"
-          fi
+          for shot in "$RUNNER_TEMP/cemu-test-output"/cemu-after-*.png; do
+            [ -f "$shot" ] || continue
+            file "$shot"
+          done
 
           # Make the smoke test produce actionable evidence instead of treating
           # "the Cemu process stayed alive" as a successful game launch.
