@@ -93,8 +93,12 @@ jobs:
               git config --global --add safe.directory /src
               git config --global --add safe.directory /src/psxrecomp-v4
               git -C /src/psxrecomp-v4 rev-parse --verify HEAD
-              dkp-pacman -Syu --noconfirm
-              dkp-pacman -S --needed --noconfirm wiiu-dev wiiu-sdl2
+              # The devkitpro/devkitppc image is already provisioned with
+              # wiiu-dev and wiiu-sdl2. Avoid dkp-pacman network sync here:
+              # pkg.devkitpro.org may return 403 and the cached image is sufficient.
+              command -v elf2rpl
+              test -x /opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-cmake
+              /opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-pkg-config --modversion sdl2
               export DEVKITPRO=/opt/devkitpro
               export WUT_ROOT=/opt/devkitpro/wut
               /opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-cmake \
