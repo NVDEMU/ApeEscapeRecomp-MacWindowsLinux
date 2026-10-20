@@ -110,7 +110,7 @@ def main() -> int:
 
     # The runtime debug server uses byte-order helpers that Cafe OS's POSIX
     # compatibility headers do not consistently expose. Keep the debug server
-    # buildable on Wii U with AArch64 little-endian conversions, scoped to this
+    # buildable on Wii U with big-endian PowerPC conversions, scoped to this
     # opt-in target only.
     debug_path = args.framework_root / "runtime" / "src" / "debug_server.c"
     if not debug_path.is_file():
@@ -145,7 +145,7 @@ def main() -> int:
         debug = debug[:insert_at + 1] + debug_compat + debug[insert_at + 1:]
         debug_path.write_text(debug, encoding="utf-8", newline="\n")
 
-    # Cafe OS does not ship POSIX ucontext.h. Add a real cooperative AArch64
+    # Cafe OS does not ship POSIX ucontext.h. Add a real cooperative PowerPC
     # fiber backend for Wii U rather than stubbing thread Wii Ues (the PS1
     # BIOS scheduler depends on preserving separate stacks).
     fiber_path = args.framework_root / "runtime" / "src" / "psx_fiber.c"
