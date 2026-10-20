@@ -70,6 +70,47 @@ if(EMSCRIPTEN)
     endif()
 endif()
 
+# Experimental native Wii U build. All Wii U-only runtime patches are opt-in.
+# Desktop, browser, Android and Switch configuration paths remain unchanged.
+option(APE_WIIU_PORT "Enable the experimental native Nintendo Wii U port" OFF)
+if(APE_WIIU_PORT)
+    set(PSX_SDL_BACKEND "SDL2" CACHE STRING "SDL backend for Wii U" FORCE)
+    add_compile_definitions(PSX_APE_WIIU_PORT=1)
+    # Cafe OS has no desktop dlopen/process-launch environment; overlays are
+    # interpreted, external BIOS-module builds and xdelta-based disc mods are disabled.
+    set(CMAKE_DL_LIBS "")
+
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tools/apply_wiiu_network_portability_patch.py"
+                --framework-root "${PSXRECOMP_ROOT}"
+        RESULT_VARIABLE APE_WIIU_NETWORK_PATCH_RESULT
+    )
+    if(NOT APE_WIIU_NETWORK_PATCH_RESULT EQUAL 0)
+        message(FATAL_ERROR "Could not apply the Wii U PowerPC/network portability patch.")
+    endif()
+
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tools/apply_wiiu_runtime_portability_patch.py"
+                --framework-root "${PSXRECOMP_ROOT}"
+        RESULT_VARIABLE APE_WIIU_RUNTIME_PATCH_RESULT
+    )
+    if(NOT APE_WIIU_RUNTIME_PATCH_RESULT EQUAL 0)
+        message(FATAL_ERROR "Could not apply the Wii U runtime portability patch.")
+    endif()
+
+    execute_process(
+        COMMAND "${Python3_EXECUTABLE}"
+                "${CMAKE_CURRENT_SOURCE_DIR}/tools/apply_wiiu_sdcard_patch.py"
+                --framework-root "${PSXRECOMP_ROOT}"
+        RESULT_VARIABLE APE_WIIU_SDCARD_PATCH_RESULT
+    )
+    if(NOT APE_WIIU_SDCARD_PATCH_RESULT EQUAL 0)
+        message(FATAL_ERROR "Could not apply Wii U SD-card game discovery.")
+    endif()
+endif()
+
 include("${PSXRECOMP_ROOT}/runtime/runtime.cmake")
 
 # Build the framework's PGXP white-box regression suite against the patched
@@ -146,7 +187,7 @@ psxrecomp_add_runtime_target(psx-runtime
 # Settings OST player playback (native desktop only; browser/Android remain unchanged).
 # Only the decoder is fetched at build time. Actual soundtrack tracks are downloaded
 # individually at runtime and kept in the user's writable data folder.
-if(NOT EMSCRIPTEN AND NOT ANDROID)
+if(NOT EMSCRIPTEN AND NOT ANDROID AND NOT APE_WIIU_PORT)
     include(FetchContent)
     FetchContent_Declare(ape_escape_miniaudio
         URL https://github.com/mackron/miniaudio/archive/refs/tags/0.11.22.tar.gz
