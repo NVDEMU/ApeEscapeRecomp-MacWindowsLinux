@@ -93,7 +93,9 @@ jobs:
           python3 tools/apply_switch_sdcard_patch.py --framework-root "$PWD/psxrecomp-v4"
           python3 tools/apply_switch_runtime_portability_patch.py --framework-root "$PWD/psxrecomp-v4"
           grep -q 'PSX_RYUJINX_SDCARD_SCAN' psxrecomp-v4/runtime/src/main.cpp
-          grep -q 'exclude host GL/Vulkan renderers' psxrecomp-v4/runtime/runtime.cmake
+          grep -q 'retain renderer APIs and add the GL link shim' psxrecomp-v4/runtime/runtime.cmake
+grep -q 'Switch-only OpenGL link shim' psxrecomp-v4/runtime/src/gpu_gl_switch_shim.c
+grep -q 'force the software renderer on libnx' psxrecomp-v4/runtime/src/main.cpp
           grep -q 'no process-spawned overlay compiler' psxrecomp-v4/runtime/src/autocompile.c
           grep -q 'libnx diagnostic clock fallback' psxrecomp-v4/runtime/src/dma.c
 
