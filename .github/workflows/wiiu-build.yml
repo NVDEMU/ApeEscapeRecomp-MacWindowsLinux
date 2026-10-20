@@ -350,6 +350,36 @@ jobs:
           if [ -f "$RUNNER_TEMP/cemu-test-output/cemu-after-45s.png" ]; then
             file "$RUNNER_TEMP/cemu-test-output/cemu-after-45s.png"
           fi
+
+          # Make the smoke test produce actionable evidence instead of treating
+          # "the Cemu process stayed alive" as a successful game launch.
+          LOG="$RUNNER_TEMP/cemu-test-output/cemu.log"
+          {
+            echo "=== Cemu process / launch summary ==="
+            echo "Smoke-test wrapper exit: $CEMU_TEST_EXIT"
+            echo "RPX: ${RPX_FILES[0]}"
+            sha256sum "${RPX_FILES[0]}"
+            echo
+            echo "=== Cemu / graphics / RPX diagnostic lines ==="
+            if [ -f "$LOG" ]; then
+              grep -Ein 'error|warning|fail|exception|crash|DRI3|Vulkan|OpenGL|GX2|RPX|Cafe|unsupported|disc via SD-card|PSXRecomp|psxrecomp' "$LOG" \\
+                > "$RUNNER_TEMP/cemu-test-output/diagnostic-summary.txt" || true
+              if [ -s "$RUNNER_TEMP/cemu-test-output/diagnostic-summary.txt" ]; then
+                cat "$RUNNER_TEMP/cemu-test-output/diagnostic-summary.txt"
+              else
+                echo "No matching diagnostic keywords found; full log is still uploaded."
+              fi
+            fi
+            echo
+            echo "=== Screenshot image statistics ==="
+            for shot in "$RUNNER_TEMP/cemu-test-output"/cemu-after-*.png; do
+              [ -f "$shot" ] || continue
+              echo "--- $shot"
+              identify -format 'dimensions=%wx%h colors=%k mean=%[fx:mean] standard_deviation=%[fx:standard_deviation]\\n' "$shot" || true
+              convert "$shot" -resize 1x1\\! -format 'average_rgb=%[pixel:p{0,0}]\\n' info: || true
+            done
+          } | tee "$RUNNER_TEMP/cemu-test-output/diagnostic-summary.txt"
+
           if [ "$CEMU_TEST_EXIT" -ne 0 ]; then
             echo "::error::Cemu/RPX startup test failed (exit $CEMU_TEST_EXIT). See uploaded diagnostics."
             exit "$CEMU_TEST_EXIT"
