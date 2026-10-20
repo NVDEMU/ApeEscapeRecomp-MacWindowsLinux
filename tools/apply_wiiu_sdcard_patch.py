@@ -15,9 +15,9 @@ MARKER = '    // Go straight to the native picker. A preliminary modal was redun
 PATCH_MARKER = '    // Experimental Wii U/Cemu SD-card fallback (project patch).'
 
 PATCH = '''#if defined(PSX_APE_WIIU_PORT)\n    // Experimental Wii U/Cemu SD-card fallback (project patch).
-    // The emulator's host-side /sdcard directory is only visible when the
-    // runtime actually exposes it; on a Wii U-like guest, sdmc:/ is the
-    // virtual SD mount. Check both forms, plus the app-relative data folder.
+    // Real Wii U homebrew commonly accesses the SD card through sd:/ paths.
+    // Cemu can instead expose a host directory under /vol/external01 with
+    // --cos-mounts. Check both the native-style path and Cemu's virtual mount.
     // This runs only when the project enables APE_WIIU_PORT at configure time.
     {
         namespace ape_fs = std::filesystem;
@@ -58,7 +58,7 @@ PATCH = '''#if defined(PSX_APE_WIIU_PORT)\n    // Experimental Wii U/Cemu SD-car
             }
         }
 
-        // Accommodate user-renamed images in the Cemu virtual SD card.
+        // Accommodate user-renamed images in the Wii U SD card or Cemu mount.
         // Search only a shallow, bounded depth so a large SD card cannot stall
         // startup. Duplicate roots are harmless; inaccessible paths are ignored.
         for (const auto& root : roots) {
