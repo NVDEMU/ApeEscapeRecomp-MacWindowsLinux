@@ -200,6 +200,16 @@ if(APE_WIIU_PORT)
         message(FATAL_ERROR "WUT's wut_create_rpx() is unavailable; use the devkitPro Wii U toolchain.")
     endif()
     set_target_properties(psx-runtime PROPERTIES OUTPUT_NAME "ApeEscapeRecomp")
+    # elf2rpl only accepts Cafe OS-supported relocation forms. The generic GCC
+    # local-exec TLS model emits R_PPC_TPREL16_* (70/72), while PLT calls emit
+    # R_PPC_PLTREL24 (18) / R_PPC_LOCAL24PC (23), which elf2rpl rejects.
+    # Use dynamic TLS relocations supported by the RPL loader and avoid PLT
+    # branch relocations for this console target.
+    target_compile_options(psx-runtime PRIVATE
+        -mno-plt
+        -fno-plt
+        -ftls-model=global-dynamic
+    )
     wut_create_rpx(psx-runtime)
 endif()
 
