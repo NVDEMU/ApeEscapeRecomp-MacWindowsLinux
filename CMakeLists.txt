@@ -184,6 +184,17 @@ psxrecomp_add_runtime_target(psx-runtime
 )
 
 
+# On Wii U the native output is an RPX. Aroma can launch RPX homebrew from SD,
+# and Cemu can load the same file directly for rapid school-time testing.
+if(APE_WIIU_PORT)
+    if(NOT COMMAND wut_create_rpx)
+        message(FATAL_ERROR "WUT's wut_create_rpx() is unavailable; use the devkitPro Wii U toolchain.")
+    endif()
+    set_target_properties(psx-runtime PROPERTIES OUTPUT_NAME "ApeEscapeRecomp")
+    wut_create_rpx(psx-runtime)
+endif()
+
+
 # Settings OST player playback (native desktop only; browser/Android remain unchanged).
 # Only the decoder is fetched at build time. Actual soundtrack tracks are downloaded
 # individually at runtime and kept in the user's writable data folder.
