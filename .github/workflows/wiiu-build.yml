@@ -103,6 +103,7 @@ jobs:
                 -DBUILD_TESTING=OFF \
                 -DPSX_RECOMP_UI:BOOL=OFF \
                 -DPSX_SETUP_WIZARD:BOOL=OFF \
+                -DPSX_DEBUG_TOOLS:BOOL=OFF \
                 -DAPE_WIIU_PORT=ON
               cmake --build /src/build-wiiu --parallel 2
             '
