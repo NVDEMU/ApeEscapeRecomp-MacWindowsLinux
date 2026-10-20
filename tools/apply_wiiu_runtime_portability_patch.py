@@ -56,7 +56,7 @@ endif()"""
         new_block_cmake = """# Wii U portability: retain renderer APIs and add the GL link shim.
 if(APE_WIIU_PORT)
     list(APPEND PSXRECOMP_RUNTIME_SOURCES
-        ${PSXRECOMP_ROOT}/runtime/src/gpu_gl_Wii U_shim.c)
+        ${PSXRECOMP_ROOT}/runtime/src/gpu_gl_wiiu_shim.c)
 endif()"""
         cmake = replace_once(cmake, old_block, new_block_cmake, "renderer source-list patch")
     elif new_marker not in cmake:
@@ -65,7 +65,7 @@ endif()"""
 # Wii U portability: retain renderer APIs and add the GL link shim.
 if(APE_WIIU_PORT)
     list(APPEND PSXRECOMP_RUNTIME_SOURCES
-        ${PSXRECOMP_ROOT}/runtime/src/gpu_gl_Wii U_shim.c)
+        ${PSXRECOMP_ROOT}/runtime/src/gpu_gl_wiiu_shim.c)
 endif()
 # TCP `disasm` command only (debug_server.c); stripped with the rest of the TCP
 """
@@ -87,7 +87,7 @@ endif()"""
     # Wii U-only desktop OpenGL entrypoints. SDL/OpenGL headers supply the
     # declarations; definitions are inert and are never used for rendering.
     # The GL renderer translation unit is kept for its shared non-GL APIs/state.
-    glshim_path = root / "runtime" / "src" / "gpu_gl_Wii U_shim.c"
+    glshim_path = root / "runtime" / "src" / "gpu_gl_wiiu_shim.c"
     glshim_marker = "Wii U-only OpenGL link shim; software rendering is forced in main.cpp."
     glshim = r'''/* Wii U-only OpenGL link shim; software rendering is forced in main.cpp.
  *
