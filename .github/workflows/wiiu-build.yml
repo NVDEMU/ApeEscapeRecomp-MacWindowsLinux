@@ -114,9 +114,9 @@ jobs:
                 READELF="$(command -v powerpc-eabi-readelf || command -v readelf)"
                 find /src/build-wiiu -type f -name '*.o' -print0 |
                   while IFS= read -r -d '' object; do
-                    matches="$("$READELF" -rW "$object" 2>/dev/null | grep -E 'R_PPC_TPREL(16_(HA|LO)|16|32)' || true)"
+                    matches="$("$READELF" -rW "$object" 2>/dev/null | grep -E "R_PPC_TPREL(16_(HA|LO)|16|32)" || true)"
                     if [ -n "$matches" ]; then
-                      printf '\\n== %s ==\\n%s\\n' "$object" "$matches"
+                      printf "\\n== %s ==\\n%s\\n" "$object" "$matches"
                     fi
                   done
                 echo "::endgroup::"
