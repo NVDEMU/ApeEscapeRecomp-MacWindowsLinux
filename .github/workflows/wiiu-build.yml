@@ -303,7 +303,7 @@ jobs:
               done
               kill -KILL "$CEMU_PID" 2>/dev/null || true
               wait "$CEMU_PID" 2>/dev/null || true
-CEMU_TEST_SCRIPT
+          CEMU_TEST_SCRIPT
           CEMU_TEST_EXIT=$?
           set -e
 
