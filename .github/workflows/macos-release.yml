@@ -2,7 +2,7 @@ name: Windows + macOS apps and Nightly release
 
 on:
   push:
-    branches: ['**']
+    branches: ['**', '!wiiu-port']
     tags: ['macos-v*']
   workflow_dispatch:
 
