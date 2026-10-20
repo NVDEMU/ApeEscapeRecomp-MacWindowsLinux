@@ -132,3 +132,96 @@ jobs:
           path: wiiu-artifact/*
           if-no-files-found: error
           retention-days: 14
+
+  cemu-smoke-test:
+    name: Cemu RPX smoke test
+    needs: build-wiiu
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    env:
+      CEMU_RELEASE_URL: https://github.com/cemu-project/Cemu/releases/download/v2.6/cemu-2.6-ubuntu-22.04-x64.zip
+      CEMU_RELEASE_SHA256: 5e4592d0dae394fa0614cb8c875eff3f81b23170b349511de318d9caf7215e1b
+    steps:
+      - name: Check out disc downloader
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Download built RPX artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: ApeEscapeRecomp-WiiU-${{ github.sha }}
+          path: wiiu-artifact
+
+      - name: Install Cemu display and software Vulkan dependencies
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y xvfb xauth unzip curl mame-tools \
+            libvulkan1 mesa-vulkan-drivers libgtk-3-0t64 libpulse0 \
+            libsecret-1-0 libxkbcommon0 libglu1-mesa libgdk-pixbuf-2.0-0
+
+      - name: Download and verify Cemu
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cemu"
+          curl --fail --location --silent --show-error "$CEMU_RELEASE_URL" \
+            -o "$RUNNER_TEMP/cemu.zip"
+          echo "$CEMU_RELEASE_SHA256  $RUNNER_TEMP/cemu.zip" | sha256sum --check
+          unzip -q "$RUNNER_TEMP/cemu.zip" -d "$RUNNER_TEMP/cemu"
+          CEMU_BIN="$(find "$RUNNER_TEMP/cemu" -type f -perm -u+x \
+            \( -name Cemu -o -name cemu \) -print -quit)"
+          if [ -z "$CEMU_BIN" ]; then
+            echo "::error::Could not find the Cemu executable in the verified release archive."
+            find "$RUNNER_TEMP/cemu" -maxdepth 3 -type f | sort | head -n 100
+            exit 1
+          fi
+          echo "CEMU_BIN=$CEMU_BIN" >> "$GITHUB_ENV"
+          mkdir -p "$(dirname "$CEMU_BIN")/portable" "$(dirname "$CEMU_BIN")/mlc01"
+          "$CEMU_BIN" --version || true
+
+      - name: Download original disc privately for virtual SD mount
+        env:
+          GAME_ASSETS_TOKEN: ${{ secrets.GAME_ASSETS_TOKEN }}
+          GAME_ASSETS_REPO: NVDEMU/apeescapeprivateassets
+          GAME_ASSETS_TAG: thing
+          GAME_ASSETS_FILENAME: Ape.Escape.USA.chd
+        run: |
+          set -euo pipefail
+          python3 tools/download_disc.py "$RUNNER_TEMP/Ape Escape (USA).chd"
+          chdman verify -i "$RUNNER_TEMP/Ape Escape (USA).chd"
+          mkdir -p "$RUNNER_TEMP/cemu-sd/wiiu/apeescape"
+          chdman extractcd \
+            -i "$RUNNER_TEMP/Ape Escape (USA).chd" \
+            -o "$RUNNER_TEMP/Ape Escape (USA).cue" \
+            -ob "$RUNNER_TEMP/Ape Escape (USA).bin"
+          cp "$RUNNER_TEMP/Ape Escape (USA).cue" "$RUNNER_TEMP/cemu-sd/wiiu/apeescape/"
+          cp "$RUNNER_TEMP/Ape Escape (USA).bin" "$RUNNER_TEMP/cemu-sd/wiiu/apeescape/"
+
+      - name: Launch RPX in Cemu for 30-second smoke test
+        shell: bash
+        run: |
+          set -euo pipefail
+          mapfile -t RPX_FILES < <(find wiiu-artifact -maxdepth 1 -type f -name '*.rpx' -print)
+          if [ "${#RPX_FILES[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one RPX artifact, found ${#RPX_FILES[@]}."
+            ls -la wiiu-artifact
+            exit 1
+          fi
+          export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          set +e
+          timeout --signal=TERM --kill-after=8s 30s xvfb-run -a \
+            --server-args="-screen 0 1280x720x24" \
+            "$CEMU_BIN" -g "${RPX_FILES[0]}" \
+            --cos-mounts "$RUNNER_TEMP/cemu-sd:/vol/external01/" \
+            --forward-console-logging > "$RUNNER_TEMP/cemu-smoke.log" 2>&1
+          CEMU_EXIT=$?
+          set -e
+          cat "$RUNNER_TEMP/cemu-smoke.log"
+          if [ "$CEMU_EXIT" -ne 124 ] && [ "$CEMU_EXIT" -ne 137 ]; then
+            echo "::error::Cemu did not remain running for the 30-second RPX smoke test (exit $CEMU_EXIT)."
+            exit 1
+          fi
+          echo "Cemu stayed alive for the 30-second RPX smoke window with the virtual SD mount."
