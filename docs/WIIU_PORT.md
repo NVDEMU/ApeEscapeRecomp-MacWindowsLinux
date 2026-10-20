@@ -48,17 +48,42 @@ need real-console testing.
 
 ## Testing through Cemu
 
-Cemu supports launching an RPX directly using **File → Load** (or its RPX
-launch option in the installed version). That is useful for iterating on
-startup, renderer, input, and basic game loading without copying each test build
-to the console.
+**Yes — Cemu can be used at school for rapid iteration.** Its current launch
+options support selecting a game with `-g`/ `--game` and mounting a host
+directory into the emulated Wii U filesystem with `--cos-mounts`. You can run
+the RPX directly without an Aroma console. See the current
+[Cemu launch-options implementation](https://github.com/cemu-project/Cemu/blob/main/src/config/LaunchSettings.cpp).
 
-Cemu's host filesystem is not automatically the Wii U's physical SD card. If
-disc discovery does not find files by itself, create a host folder that mirrors
-the SD layout and pass it as a Cemu virtual mount to `/vol/external01` using
-Cemu's `--cos-mounts` option. Then place the disc under
-`wiiu/apeescape/` within that host folder. Exact command-line behavior can vary
-by Cemu version, so check its launch settings/help if that option is unavailable.
+Create a host folder that mirrors the SD-card layout and place your own dumped
+game image here:
+
+```text
+CemuWiiUSD/
+└── wiiu/
+    └── apeescape/
+        ├── Ape Escape (USA).cue
+        └── Ape Escape (USA).bin
+```
+
+On Windows, for example, launch Cemu with:
+
+```powershell
+Cemu.exe -g "C:\\path\\to\\ApeEscapeRecomp.rpx" --cos-mounts "C:\\CemuWiiUSD:/vol/external01/" --forward-console-logging
+```
+
+On macOS, the same idea from Terminal is:
+
+```bash
+"/Applications/Cemu.app/Contents/MacOS/Cemu" \
+  -g "$PWD/ApeEscapeRecomp.rpx" \
+  --cos-mounts "$HOME/CemuWiiUSD:/vol/external01/" \
+  --forward-console-logging
+```
+
+The SD auto-discovery patch checks `/vol/external01/wiiu/apeescape/` so this
+mount mirrors the console layout. If Cemu is installed elsewhere, adjust the
+executable path. You can also use the GUI's RPX load option for basic launch
+testing, but the explicit mount is useful for checking SD-based disc discovery.
 
 Cemu testing does **not** replace hardware testing: filesystem mapping,
 timing, memory limits, SDL2 video/audio, controller behavior, and software
