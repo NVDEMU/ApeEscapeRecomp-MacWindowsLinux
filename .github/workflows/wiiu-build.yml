@@ -335,6 +335,172 @@ jobs:
             exit "$CONTROL_EXIT"
           fi
 
+      - name: Build SDL2 video control RPX
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDL_CONTROL_SRC="$RUNNER_TEMP/wiiu-sdl2-control"
+          SDL_CONTROL_BUILD="$RUNNER_TEMP/wiiu-sdl2-control-build"
+          mkdir -p "$SDL_CONTROL_SRC" "$SDL_CONTROL_BUILD"
+          cat > "$SDL_CONTROL_SRC/CMakeLists.txt" <<'SDL_CMAKE'
+          cmake_minimum_required(VERSION 3.2)
+          set(CMAKE_TOOLCHAIN_FILE $ENV{DEVKITPRO}/cmake/WiiU.cmake)
+          project(sdl2_control C)
+          set(PKG_CONFIG_EXECUTABLE "/opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-pkg-config" CACHE FILEPATH "" FORCE)
+          find_package(PkgConfig REQUIRED)
+          pkg_check_modules(SDL2 REQUIRED IMPORTED_TARGET sdl2)
+          add_executable(sdl2-control main.c)
+          target_compile_options(sdl2-control PRIVATE -Wall -Wextra)
+          target_link_libraries(sdl2-control PRIVATE PkgConfig::SDL2)
+          wut_create_rpx(sdl2-control)
+          SDL_CMAKE
+          cat > "$SDL_CONTROL_SRC/main.c" <<'SDL_MAIN'
+          #include <stdint.h>
+          #include <stdio.h>
+          #include <SDL.h>
+          #include <coreinit/thread.h>
+          #include <whb/log.h>
+          #include <whb/log_console.h>
+          #include <whb/proc.h>
+
+          static void show_error(const char *stage, const char *detail)
+          {
+              WHBLogPrintf("SDL2 control: %s failed: %s", stage, detail ? detail : "unknown error");
+              WHBLogConsoleDraw();
+              while (WHBProcIsRunning())
+                  OSSleepTicks(OSMillisecondsToTicks(250));
+          }
+
+          int main(void)
+          {
+              WHBProcInit();
+              WHBLogConsoleInit();
+              WHBLogPrint("SDL2 video/texture test starting...");
+              WHBLogConsoleDraw();
+
+              if (SDL_Init(SDL_INIT_VIDEO) != 0) {
+                  show_error("SDL_Init(SDL_INIT_VIDEO)", SDL_GetError());
+                  SDL_Quit(); WHBLogConsoleFree(); WHBProcShutdown(); return 2;
+              }
+
+              SDL_Window *window = SDL_CreateWindow("Ape Escape SDL2 control",
+                  SDL_WINDOWPOS_CENTERED, SDL_WINDOWPOS_CENTERED, 854, 480, SDL_WINDOW_SHOWN);
+              if (!window) {
+                  show_error("SDL_CreateWindow", SDL_GetError());
+                  SDL_Quit(); WHBLogConsoleFree(); WHBProcShutdown(); return 3;
+              }
+
+              SDL_Renderer *renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_SOFTWARE);
+              if (!renderer) {
+                  show_error("SDL_CreateRenderer(software)", SDL_GetError());
+                  SDL_DestroyWindow(window); SDL_Quit(); WHBLogConsoleFree(); WHBProcShutdown(); return 4;
+              }
+
+              SDL_PixelFormat *format = SDL_AllocFormat(SDL_PIXELFORMAT_ARGB8888);
+              SDL_Texture *texture = SDL_CreateTexture(renderer, SDL_PIXELFORMAT_ARGB8888,
+                  SDL_TEXTUREACCESS_STREAMING, 320, 240);
+              if (!format || !texture) {
+                  show_error("SDL texture setup", SDL_GetError());
+                  if (texture) SDL_DestroyTexture(texture);
+                  if (format) SDL_FreeFormat(format);
+                  SDL_DestroyRenderer(renderer); SDL_DestroyWindow(window);
+                  SDL_Quit(); WHBLogConsoleFree(); WHBProcShutdown(); return 5;
+              }
+
+              static Uint32 pixels[320 * 240];
+              for (int y = 0; y < 240; ++y) {
+                  for (int x = 0; x < 320; ++x) {
+                      pixels[y * 320 + x] = SDL_MapRGBA(format,
+                          (Uint8)((x * 255) / 319), (Uint8)((y * 255) / 239),
+                          (Uint8)(((x / 16) ^ (y / 16)) & 1 ? 240 : 30), 255);
+                  }
+              }
+              WHBLogPrint("SDL2 initialized; streaming texture upload and render loop starting.");
+              WHBLogConsoleFree();
+
+              int quit = 0;
+              while (!quit && WHBProcIsRunning()) {
+                  SDL_Event event;
+                  while (SDL_PollEvent(&event))
+                      if (event.type == SDL_QUIT) quit = 1;
+                  SDL_UpdateTexture(texture, NULL, pixels, 320 * (int)sizeof(Uint32));
+                  SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+                  SDL_RenderClear(renderer);
+                  SDL_RenderCopy(renderer, texture, NULL, NULL);
+                  SDL_RenderPresent(renderer);
+                  SDL_Delay(16);
+              }
+
+              SDL_DestroyTexture(texture); SDL_FreeFormat(format);
+              SDL_DestroyRenderer(renderer); SDL_DestroyWindow(window);
+              SDL_Quit(); WHBProcShutdown();
+              return 0;
+          }
+          SDL_MAIN
+          docker run --rm \
+            -v "$SDL_CONTROL_SRC:/control-src" \
+            -v "$SDL_CONTROL_BUILD:/control-build" \
+            -w /control-build \
+            devkitpro/devkitppc:latest \
+            bash -lc '
+              set -euo pipefail
+              export DEVKITPRO=/opt/devkitpro
+              export WUT_ROOT=/opt/devkitpro/wut
+              /opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-cmake \
+                -S /control-src -B /control-build -DCMAKE_BUILD_TYPE=Release
+              cmake --build /control-build --parallel 2
+              test -s /control-build/sdl2-control.rpx
+            '
+          cp "$SDL_CONTROL_BUILD/sdl2-control.rpx" "$RUNNER_TEMP/sdl2-control.rpx"
+          sha256sum "$RUNNER_TEMP/sdl2-control.rpx"
+
+      - name: Run SDL2 video control in Cemu and capture display
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cemu-test-output"
+          export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          export SDL_CONTROL_RPX="$RUNNER_TEMP/sdl2-control.rpx"
+          export SDL_CONTROL_OUT="$RUNNER_TEMP/cemu-test-output"
+          set +e
+          timeout --signal=TERM --kill-after=5s 25s xvfb-run -a \
+            --server-args="-screen 0 1280x720x24" \
+            bash <<'SDL_CONTROL_SCRIPT'
+              set -uo pipefail
+              "$CEMU_BIN" -g "$SDL_CONTROL_RPX" --forward-console-logging \
+                > "$SDL_CONTROL_OUT/sdl2-control-cemu.log" 2>&1 &
+              CEMU_PID=$!
+              echo "Started Cemu SDL2 control RPX (PID $CEMU_PID)"
+              sleep 12
+              if kill -0 "$CEMU_PID" 2>/dev/null; then
+                import -window root -silent "$SDL_CONTROL_OUT/sdl2-control-after-12s.png" \
+                  2> "$SDL_CONTROL_OUT/sdl2-control-screenshot-errors.log" || true
+                kill -TERM "$CEMU_PID" 2>/dev/null || true
+                sleep 2
+                kill -KILL "$CEMU_PID" 2>/dev/null || true
+                wait "$CEMU_PID" 2>/dev/null || true
+              else
+                wait "$CEMU_PID"
+                status=$?
+                echo "Cemu exited before SDL2 control screenshot (exit $status)"
+                exit "$status"
+              fi
+          SDL_CONTROL_SCRIPT
+          SDL_CONTROL_EXIT=$?
+          set -e
+          echo "SDL2 Cemu wrapper exit: $SDL_CONTROL_EXIT"
+          if [ -f "$RUNNER_TEMP/cemu-test-output/sdl2-control-cemu.log" ]; then
+            grep -Ein 'error|warning|fail|exception|crash|DRI3|Vulkan|OpenGL|SDL|GX2|unsupported' "$RUNNER_TEMP/cemu-test-output/sdl2-control-cemu.log" || true
+          fi
+          if [ -f "$RUNNER_TEMP/cemu-test-output/sdl2-control-after-12s.png" ]; then
+            identify -format 'SDL2 control screenshot: %wx%h colors=%k mean=%[fx:mean] standard_deviation=%[fx:standard_deviation]\n' "$RUNNER_TEMP/cemu-test-output/sdl2-control-after-12s.png"
+          else
+            echo "No SDL2 control screenshot was captured."
+          fi
+          if [ "$SDL_CONTROL_EXIT" -ne 0 ]; then
+            echo "::error::Cemu SDL2 control test wrapper failed."
+            exit "$SDL_CONTROL_EXIT"
+          fi
       - name: Launch RPX in Cemu and capture startup for 60 seconds
         shell: bash
         run: |
@@ -457,9 +623,9 @@ jobs:
               [ -f "$shot" ] || continue
               echo "--- $shot"
               identify -format 'dimensions=%wx%h colors=%k mean=%[fx:mean] standard_deviation=%[fx:standard_deviation]\\n' "$shot" || true
-              convert "$shot" -resize 1x1\\! -format 'average_rgb=%[pixel:p{0,0}]\\n' info: || true
+              convert "$shot" -resize '1x1!' -format 'average_rgb=%[pixel:p{0,0}]\\n' info: || true
             done
-          } | tee "$RUNNER_TEMP/cemu-test-output/diagnostic-summary.txt"
+          } | tee -a "$RUNNER_TEMP/cemu-test-output/diagnostic-summary.txt"
 
           if [ "$CEMU_TEST_EXIT" -ne 0 ]; then
             echo "::error::Cemu/RPX startup test failed (exit $CEMU_TEST_EXIT). See uploaded diagnostics."
