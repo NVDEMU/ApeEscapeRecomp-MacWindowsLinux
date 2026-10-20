@@ -224,6 +224,9 @@ if(APE_WIIU_PORT)
     # stb_image's thread-local option flags are not used by this runtime and
     # must fall back to its global flags because Cafe OS lacks ELF TLS support.
     target_compile_definitions(psx-runtime PRIVATE STBI_NO_THREAD_LOCALS=1)
+    if(TARGET psx_texture_image_decode)
+        target_compile_definitions(psx_texture_image_decode PRIVATE STBI_NO_THREAD_LOCALS=1)
+    endif()
     target_compile_options(psx-runtime PRIVATE -fno-pic -fno-pie)
 endif()
 
