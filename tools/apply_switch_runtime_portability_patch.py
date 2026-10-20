@@ -134,7 +134,7 @@ const char *autocompile_degraded_reason(void) {
     bios = read_text(bios_path)
     bios_marker = "/* Switch portability: external BIOS module builds are unavailable on libnx. */"
     if bios_marker not in bios:
-        old = '    FILE *p = popen(cmd, "r");\n'
+        old = '#else\n    FILE *p = popen(cmd, "r");\n'
         new = '''#elif defined(PSX_RYUJINX_SDCARD_SCAN)
     /* Switch portability: external BIOS module builds are unavailable on libnx. */
     (void)cmd;
