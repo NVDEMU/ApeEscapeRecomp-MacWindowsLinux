@@ -297,6 +297,42 @@ const char *autocompile_degraded_reason(void) {
         mod_runtime = replace_once(mod_runtime, old, new, "Switch derived-disc process launcher")
         write_text(mod_path, mod_runtime)
 
+    # The PSX renderer is software on libnx, but that does not control SDL's
+    # separate 2D frame-presenter. The standard SDL2 libnx driver may not offer
+    # an accelerated renderer; requesting one makes SDL_CreateRenderer fail and
+    # main() returns straight back to Homebrew Menu before the game can start.
+    # Explicitly select SDL's portable software presenter for this target only.
+    sdl_present_marker = "/* Switch portability: use SDL's software 2D presentation renderer. */"
+    if sdl_present_marker not in main:
+        old_presenter = """    Uint32 rflags = SDL_RENDERER_ACCELERATED |
+                    (present_effective_swap_interval() != 0
+                         ? SDL_RENDERER_PRESENTVSYNC : 0u);
+    sdl_renderer = SDL_CreateRenderer(sdl_window, -1, rflags);
+    if (!sdl_renderer)
+        sdl_renderer = SDL_CreateRenderer(sdl_window, -1, SDL_RENDERER_ACCELERATED);
+    if (!sdl_renderer) {
+        std::fprintf(stderr, "SDL_CreateRenderer failed: %s\\n", SDL_GetError());
+        return 1;
+    }"""
+        new_presenter = """#if defined(PSX_RYUJINX_SDCARD_SCAN)
+    /* Switch portability: use SDL's software 2D presentation renderer. */
+    Uint32 rflags = SDL_RENDERER_SOFTWARE;
+    sdl_renderer = SDL_CreateRenderer(sdl_window, -1, rflags);
+#else
+    Uint32 rflags = SDL_RENDERER_ACCELERATED |
+                    (present_effective_swap_interval() != 0
+                         ? SDL_RENDERER_PRESENTVSYNC : 0u);
+    sdl_renderer = SDL_CreateRenderer(sdl_window, -1, rflags);
+    if (!sdl_renderer)
+        sdl_renderer = SDL_CreateRenderer(sdl_window, -1, SDL_RENDERER_ACCELERATED);
+#endif
+    if (!sdl_renderer) {
+        std::fprintf(stderr, "SDL_CreateRenderer failed: %s\\n", SDL_GetError());
+        return 1;
+    }"""
+        main = replace_once(main, old_presenter, new_presenter, "Switch SDL software presenter")
+        write_text(main_path, main)
+
     print("Applied Switch software-renderer, GL-link, overlay-compiler, BIOS-builder, derived-disc, and clock portability patches")
     return 0
 
