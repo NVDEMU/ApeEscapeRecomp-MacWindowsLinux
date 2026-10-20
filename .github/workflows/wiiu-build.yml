@@ -1,0 +1,73 @@
+name: Experimental Wii U build
+
+on:
+  push:
+    branches: [wiiu-port]
+  pull_request:
+    branches: [wiiu-port]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-wiiu:
+    runs-on: ubuntu-latest
+    container:
+      image: devkitpro/devkitppc:latest
+    steps:
+      - name: Check out game and pinned runtime
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install Wii U SDL2 and WUT packages
+        shell: bash
+        run: |
+          dkp-pacman -Syu --noconfirm
+          dkp-pacman -S --needed --noconfirm wiiu-dev wiiu-sdl2
+          source /opt/devkitpro/wiiuvars.sh
+          echo "DEVKITPRO=$DEVKITPRO"
+          echo "WUT_ROOT=$WUT_ROOT"
+          test -x "$DEVKITPRO/portlibs/wiiu/bin/powerpc-eabi-cmake"
+
+      - name: Configure native Wii U build
+        shell: bash
+        run: |
+          source /opt/devkitpro/wiiuvars.sh
+          "$DEVKITPRO/portlibs/wiiu/bin/powerpc-eabi-cmake" \
+            -S . -B build-wiiu \
+            -DCMAKE_BUILD_TYPE=Release \
+            -DBUILD_TESTING=OFF \
+            -DAPE_WIIU_PORT=ON
+
+      - name: Compile the recompiled Ape Escape runtime
+        shell: bash
+        run: |
+          source /opt/devkitpro/wiiuvars.sh
+          cmake --build build-wiiu --parallel 2
+
+      - name: Verify and stage RPX
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p wiiu-artifact
+          mapfile -t RPX_FILES < <(find build-wiiu -type f -name '*.rpx' -print)
+          if [ "${#RPX_FILES[@]}" -eq 0 ]; then
+            echo "::error::Build completed without producing a .rpx homebrew executable."
+            find build-wiiu -maxdepth 5 -type f | sort | tail -n 100
+            exit 1
+          fi
+          for file in "${RPX_FILES[@]}"; do
+            cp "$file" "wiiu-artifact/$(basename "$file")"
+          done
+          cp docs/WIIU_PORT.md wiiu-artifact/README.txt
+          sha256sum wiiu-artifact/*
+
+      - name: Upload Wii U homebrew build
+        uses: actions/upload-artifact@v4
+        with:
+          name: ApeEscapeRecomp-WiiU-${{ github.sha }}
+          path: wiiu-artifact/*
+          if-no-files-found: error
+          retention-days: 14
