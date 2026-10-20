@@ -386,6 +386,53 @@ const char *autocompile_degraded_reason(void) {
         mod_runtime = replace_once(mod_runtime, old, new, "Wii U derived-disc process launcher")
         write_text(mod_path, mod_runtime)
 
+    # Cafe OS does not support the ELF local-exec TLS relocations generated
+    # for __thread. The render worker can identify itself portably using the
+    # pthread ID already stored in the runtime state instead.
+    render_thread_path = root / "runtime" / "src" / "render_thread.c"
+    render_thread = read_text(render_thread_path)
+    render_marker = "/* Wii U portability: no ELF TLS for render-thread identity. */"
+    if render_marker not in render_thread:
+        old_tls = """#if defined(_MSC_VER)
+static __declspec(thread) int t_render;
+#else
+static __thread int t_render;
+#endif"""
+        new_tls = """/* Wii U portability: no ELF TLS for render-thread identity. */
+#if !defined(PSX_APE_WIIU_PORT)
+#  if defined(_MSC_VER)
+static __declspec(thread) int t_render;
+#  else
+static __thread int t_render;
+#  endif
+#endif"""
+        render_thread = replace_once(render_thread, old_tls, new_tls, "render-thread TLS declaration")
+        render_thread = replace_once(
+            render_thread,
+            "int rt_on_render_thread(void) { return t_render; }",
+            """int rt_on_render_thread(void) {
+#if defined(PSX_APE_WIIU_PORT)
+    return pthread_equal(pthread_self(), R.thread) != 0;
+#else
+    return t_render;
+#endif
+}""",
+            "render-thread identity check"
+        )
+        render_thread = replace_once(
+            render_thread,
+            "    t_render = 1;",
+            "#if !defined(PSX_APE_WIIU_PORT)\n    t_render = 1;\n#endif",
+            "render-thread TLS start assignment"
+        )
+        render_thread = replace_once(
+            render_thread,
+            "    t_render = 0;",
+            "#if !defined(PSX_APE_WIIU_PORT)\n    t_render = 0;\n#endif",
+            "render-thread TLS stop assignment"
+        )
+        write_text(render_thread_path, render_thread)
+
     print("Applied Wii U software-renderer, GL-link, overlay-compiler, BIOS-builder, derived-disc, and clock portability patches")
     return 0
 
