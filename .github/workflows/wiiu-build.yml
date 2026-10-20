@@ -34,24 +34,12 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y build-essential cmake ninja-build ccache pkg-config mame-tools curl ca-certificates gnupg \
+          sudo apt-get install -y build-essential cmake ninja-build ccache pkg-config mame-tools \
             libgl1-mesa-dev libegl1-mesa-dev libx11-dev libxext-dev libxrandr-dev \
             libxcursor-dev libxi-dev libxtst-dev libxfixes-dev libxss-dev libwayland-dev \
             libxkbcommon-dev libasound2-dev libpulse-dev libudev-dev libdrm-dev libgbm-dev
           command -v chdman
-
-          curl -fsSL https://apt.devkitpro.org/devkitpro-pub.gpg | sudo gpg --dearmor --yes -o /usr/share/keyrings/devkitpro.gpg
-          echo "deb [signed-by=/usr/share/keyrings/devkitpro.gpg] https://apt.devkitpro.org stable main" | sudo tee /etc/apt/sources.list.d/devkitpro.list
-          sudo apt-get update
-          sudo apt-get install -y devkitpro-pacman
-          sudo dkp-pacman-key --init
-          sudo dkp-pacman -Syu --needed --noconfirm wiiu-dev wiiu-sdl2
-
-          echo "DEVKITPRO=/opt/devkitpro" >> "$GITHUB_ENV"
-          echo "DEVKITPPC=/opt/devkitpro/devkitPPC" >> "$GITHUB_ENV"
-          echo "DEVKITARM=/opt/devkitpro/devkitARM" >> "$GITHUB_ENV"
-          test -x /opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-cmake
-          test -x /opt/devkitpro/devkitPPC/bin/powerpc-eabi-gcc
+          docker --version
 
       - name: Download and validate the original disc privately
         env:
@@ -89,18 +77,27 @@ jobs:
           test -s generated/SCUS_944.23_dispatch.c
           find generated -maxdepth 1 -type f -name 'SCUS_944.23_full*' -size +0c | grep -q .
 
-      - name: Configure native Wii U build
+      - name: Configure and compile native Wii U build in devkitPro container
         shell: bash
         run: |
           set -euo pipefail
-          /opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-cmake \
-            -S . -B build-wiiu -G Ninja \
-            -DCMAKE_BUILD_TYPE=Release \
-            -DBUILD_TESTING=OFF \
-            -DAPE_WIIU_PORT=ON
-
-      - name: Compile the recompiled Ape Escape runtime
-        run: cmake --build build-wiiu --parallel "$BUILD_JOBS"
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/src" \
+            -w /src \
+            devkitpro/devkitppc:latest \
+            bash -lc '
+              set -euo pipefail
+              dkp-pacman -Syu --noconfirm
+              dkp-pacman -S --needed --noconfirm wiiu-dev wiiu-sdl2
+              export DEVKITPRO=/opt/devkitpro
+              export WUT_ROOT=/opt/devkitpro/wut
+              /opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-cmake \
+                -S /src -B /src/build-wiiu -G Ninja \
+                -DCMAKE_BUILD_TYPE=Release \
+                -DBUILD_TESTING=OFF \
+                -DAPE_WIIU_PORT=ON
+              cmake --build /src/build-wiiu --parallel 2
+            '
 
       - name: Verify and stage RPX
         shell: bash
