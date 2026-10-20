@@ -90,6 +90,10 @@ if(APE_WIIU_PORT)
     set(PSX_SETUP_WIZARD OFF CACHE BOOL "Disable desktop setup wizard on Wii U" FORCE)
     set(PSX_DEBUG_TOOLS OFF CACHE BOOL "Disable the TCP debug server on Wii U" FORCE)
     add_compile_definitions(PSX_APE_WIIU_PORT=1)
+    # Some image-decoder dependencies are separate CMake targets. Cafe OS has no
+    # ELF TLS support, so disable stb_image thread-local options directory-wide,
+    # not only on psx-runtime after its targets have already been declared.
+    add_compile_definitions(STBI_NO_THREAD_LOCALS=1)
     # Cafe OS has no desktop dlopen/process-launch environment; overlays are
     # interpreted, external BIOS-module builds and xdelta-based disc mods are disabled.
     set(CMAKE_DL_LIBS "")
