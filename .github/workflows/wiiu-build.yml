@@ -238,8 +238,8 @@ jobs:
           set -euo pipefail
           mkdir -p "$RUNNER_TEMP/cemu-test-output"
           mapfile -t RPX_FILES < <(find wiiu-artifact -maxdepth 1 -type f -name '*.rpx' -print)
-          if [ "\${#RPX_FILES[@]}" -ne 1 ]; then
-            echo "::error::Expected exactly one RPX artifact, found \${#RPX_FILES[@]}."
+          if [ "${#RPX_FILES[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one RPX artifact, found ${#RPX_FILES[@]}."
             ls -la wiiu-artifact
             exit 1
           fi
@@ -247,7 +247,7 @@ jobs:
           export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
           export CEMU_TEST_OUTPUT="$RUNNER_TEMP/cemu-test-output"
           export CEMU_SD_ROOT="$RUNNER_TEMP/cemu-sd"
-          export RPX_TO_LAUNCH="\${RPX_FILES[0]}"
+          export RPX_TO_LAUNCH="${RPX_FILES[0]}"
           set +e
           timeout --signal=TERM --kill-after=8s 75s xvfb-run -a \
             --server-args="-screen 0 1280x720x24" \
@@ -337,7 +337,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Cemu-WiiU-launch-diagnostics-\${{ github.sha }}
-          path: \${{ runner.temp }}/cemu-test-output/
+          name: Cemu-WiiU-launch-diagnostics-${{ github.sha }}
+          path: ${{ runner.temp }}/cemu-test-output/
           if-no-files-found: warn
           retention-days: 14
