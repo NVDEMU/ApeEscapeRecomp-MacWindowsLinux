@@ -254,6 +254,87 @@ jobs:
           cp "$RUNNER_TEMP/Ape Escape (USA).cue" "$RUNNER_TEMP/cemu-sd/wiiu/apeescape/"
           cp "$RUNNER_TEMP/Ape Escape (USA).bin" "$RUNNER_TEMP/cemu-sd/wiiu/apeescape/"
 
+      - name: Build known-good Wii U Hello World control RPX
+        shell: bash
+        run: |
+          set -euo pipefail
+          CONTROL_SRC="$RUNNER_TEMP/wiiu-hello-world"
+          CONTROL_BUILD="$RUNNER_TEMP/wiiu-hello-world-build"
+          git clone --depth 1 https://github.com/MatthewL246/wiiu-hello-world.git "$CONTROL_SRC"
+          mkdir -p "$CONTROL_BUILD"
+          docker run --rm \\
+            -v "$CONTROL_SRC:/control-src" \\
+            -v "$CONTROL_BUILD:/control-build" \\
+            -w /control-build \\
+            devkitpro/devkitppc:latest \\
+            bash -lc '
+              set -euo pipefail
+              export DEVKITPRO=/opt/devkitpro
+              export WUT_ROOT=/opt/devkitpro/wut
+              /opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-cmake \\
+                -S /control-src -B /control-build \\
+                -DCMAKE_BUILD_TYPE=Release
+              cmake --build /control-build --parallel 2
+              test -s /control-build/helloworld.rpx
+            '
+          cp "$CONTROL_BUILD/helloworld.rpx" "$RUNNER_TEMP/helloworld-control.rpx"
+          sha256sum "$RUNNER_TEMP/helloworld-control.rpx"
+
+      - name: Run Hello World control in Cemu and capture display
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cemu-test-output"
+          export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          export CONTROL_RPX="$RUNNER_TEMP/helloworld-control.rpx"
+          export CONTROL_OUT="$RUNNER_TEMP/cemu-test-output"
+          set +e
+          timeout --signal=TERM --kill-after=5s 25s xvfb-run -a \\
+            --server-args="-screen 0 1280x720x24" \\
+            bash <<'CONTROL_TEST_SCRIPT'
+              set -uo pipefail
+              "$CEMU_BIN" -g "$CONTROL_RPX" --forward-console-logging \\
+                > "$CONTROL_OUT/hello-world-cemu.log" 2>&1 &
+              CEMU_PID=$!
+              echo "Started Cemu control RPX (PID $CEMU_PID)"
+              sleep 12
+              if kill -0 "$CEMU_PID" 2>/dev/null; then
+                import -window root -silent "$CONTROL_OUT/hello-world-after-12s.png" \\
+                  2> "$CONTROL_OUT/hello-world-screenshot-errors.log" || true
+                kill -TERM "$CEMU_PID" 2>/dev/null || true
+                sleep 2
+                kill -KILL "$CEMU_PID" 2>/dev/null || true
+                wait "$CEMU_PID" 2>/dev/null || true
+              else
+                wait "$CEMU_PID"
+                status=$?
+                echo "Cemu exited before control screenshot (exit $status)"
+                exit "$status"
+              fi
+            CONTROL_TEST_SCRIPT
+          CONTROL_EXIT=$?
+          set -e
+          echo "Hello World Cemu wrapper exit: $CONTROL_EXIT" | tee "$RUNNER_TEMP/cemu-test-output/hello-world-summary.txt"
+          if [ -f "$RUNNER_TEMP/cemu-test-output/hello-world-cemu.log" ]; then
+            grep -Ein 'error|warning|fail|exception|crash|DRI3|Vulkan|OpenGL|GX2|RPX|Cafe|unsupported' \\
+              "$RUNNER_TEMP/cemu-test-output/hello-world-cemu.log" \\
+              >> "$RUNNER_TEMP/cemu-test-output/hello-world-summary.txt" || true
+          fi
+          if [ -f "$RUNNER_TEMP/cemu-test-output/hello-world-after-12s.png" ]; then
+            identify -format 'Hello World screenshot: %wx%h colors=%k mean=%[fx:mean] standard_deviation=%[fx:standard_deviation]\\n' \\
+              "$RUNNER_TEMP/cemu-test-output/hello-world-after-12s.png" \\
+              | tee -a "$RUNNER_TEMP/cemu-test-output/hello-world-summary.txt"
+          else
+            echo "No Hello World screenshot was captured." | tee -a "$RUNNER_TEMP/cemu-test-output/hello-world-summary.txt"
+          fi
+          # The control is diagnostic, so retain its evidence even if Cemu fails.
+          # A Cemu control failure should fail the job: otherwise the baseline
+          # could silently disappear and make the comparison misleading.
+          if [ "$CONTROL_EXIT" -ne 0 ]; then
+            echo "::error::Cemu Hello World control test failed."
+            exit "$CONTROL_EXIT"
+          fi
+
       - name: Launch RPX in Cemu and capture startup for 60 seconds
         shell: bash
         run: |
