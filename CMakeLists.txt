@@ -74,6 +74,7 @@ endif()
 # Desktop, browser, Android and Switch configuration paths remain unchanged.
 option(APE_WIIU_PORT "Enable the experimental native Nintendo Wii U port" OFF)
 if(APE_WIIU_PORT)
+    enable_language(ASM)
     set(PSX_SDL_BACKEND "SDL2" CACHE STRING "SDL backend for Wii U" FORCE)
     # The shared recomp-ui launcher links desktop OpenGL, which Cafe OS does
     # not provide. Bring up the actual game runtime first; launcher UI parity
