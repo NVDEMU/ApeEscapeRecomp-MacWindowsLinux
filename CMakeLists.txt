@@ -121,10 +121,12 @@ include("${PSXRECOMP_ROOT}/runtime/runtime.cmake")
 # Build the framework's PGXP white-box regression suite against the patched
 # runtime sources. The framework's own pgxp_test target lives only in its
 # standalone runtime project, so this makes the test available in this build.
-add_subdirectory(
-    "${CMAKE_CURRENT_SOURCE_DIR}/tools/pgxp_projection_test"
-    "${CMAKE_CURRENT_BINARY_DIR}/pgxp-projection-test"
-)
+if(BUILD_TESTING AND NOT APE_WIIU_PORT)
+    add_subdirectory(
+        "${CMAKE_CURRENT_SOURCE_DIR}/tools/pgxp_projection_test"
+        "${CMAKE_CURRENT_BINARY_DIR}/pgxp-projection-test"
+    )
+endif()
 
 # Current psxrecomp emits the large game translation unit as numbered shards
 # (see psxrecomp-v4/SPLITGEN_MIGRATION.md). Keep the monolithic fallback for
