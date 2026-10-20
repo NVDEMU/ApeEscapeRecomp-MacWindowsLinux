@@ -18,7 +18,7 @@ PATCH = '''#if defined(PSX_APE_WIIU_PORT)\n    // Experimental Wii U/Cemu SD-car
     // The emulator's host-side /sdcard directory is only visible when the
     // runtime actually exposes it; on a Wii U-like guest, sdmc:/ is the
     // virtual SD mount. Check both forms, plus the app-relative data folder.
-    // This runs only when the project enables APE_SWITCH_PORT at configure time.
+    // This runs only when the project enables APE_WIIU_PORT at configure time.
     {
         namespace ape_fs = std::filesystem;
         const ape_fs::path exe_dir = exe_dir_from_argv(argv0);
