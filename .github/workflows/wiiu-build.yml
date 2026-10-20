@@ -26,7 +26,8 @@ jobs:
         run: |
           dkp-pacman -Syu --noconfirm
           dkp-pacman -S --needed --noconfirm wiiu-dev wiiu-sdl2
-          source /opt/devkitpro/wiiuvars.sh
+          export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
+          export WUT_ROOT="${WUT_ROOT:-$DEVKITPRO/wut}"
           echo "DEVKITPRO=$DEVKITPRO"
           echo "WUT_ROOT=$WUT_ROOT"
           test -x "$DEVKITPRO/portlibs/wiiu/bin/powerpc-eabi-cmake"
@@ -34,7 +35,8 @@ jobs:
       - name: Configure native Wii U build
         shell: bash
         run: |
-          source /opt/devkitpro/wiiuvars.sh
+          export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
+          export WUT_ROOT="${WUT_ROOT:-$DEVKITPRO/wut}"
           "$DEVKITPRO/portlibs/wiiu/bin/powerpc-eabi-cmake" \
             -S . -B build-wiiu \
             -DCMAKE_BUILD_TYPE=Release \
@@ -44,7 +46,8 @@ jobs:
       - name: Compile the recompiled Ape Escape runtime
         shell: bash
         run: |
-          source /opt/devkitpro/wiiuvars.sh
+          export DEVKITPRO="${DEVKITPRO:-/opt/devkitpro}"
+          export WUT_ROOT="${WUT_ROOT:-$DEVKITPRO/wut}"
           cmake --build build-wiiu --parallel 2
 
       - name: Verify and stage RPX
