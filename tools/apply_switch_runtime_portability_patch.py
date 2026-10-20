@@ -38,41 +38,134 @@ def main() -> int:
     args = parser.parse_args()
     root = args.framework_root
 
-    # The upstream runtime source list unconditionally includes both desktop
-    # renderers. Switch has neither desktop GL nor Vulkan loader libraries; use
-    # the runtime's built-in software rasterizer instead.
+    # Keep the renderer source files: they own shared runtime APIs/state used by
+    # render_pass.c, debug_server.c, and the software rasterizer. On Switch we
+    # force the software backend and provide inert GL entrypoints only for link
+    # compatibility; the real GL backend must never be initialized.
     cmake_path = root / "runtime" / "runtime.cmake"
     cmake = read_text(cmake_path)
-    cmake_marker = "# Switch portability: exclude host GL/Vulkan renderers on libnx."
-    if cmake_marker not in cmake:
-        anchor = ")\n# TCP `disasm` command only (debug_server.c); stripped with the rest of the TCP\n"
-        insertion = """) 
-# Switch portability: exclude host GL/Vulkan renderers on libnx.
+    old_marker = "# Switch portability: exclude host GL/Vulkan renderers on libnx."
+    new_marker = "# Switch portability: retain renderer APIs and add the GL link shim."
+    if old_marker in cmake:
+        old_block = """# Switch portability: exclude host GL/Vulkan renderers on libnx.
 if(APE_SWITCH_PORT)
     list(REMOVE_ITEM PSXRECOMP_RUNTIME_SOURCES
         ${PSXRECOMP_ROOT}/runtime/src/gpu_gl_renderer.c
         ${PSXRECOMP_ROOT}/runtime/src/gpu_vk_renderer.c)
+endif()"""
+        new_block_cmake = """# Switch portability: retain renderer APIs and add the GL link shim.
+if(APE_SWITCH_PORT)
+    list(APPEND PSXRECOMP_RUNTIME_SOURCES
+        ${PSXRECOMP_ROOT}/runtime/src/gpu_gl_switch_shim.c)
+endif()"""
+        cmake = replace_once(cmake, old_block, new_block_cmake, "renderer source-list patch")
+    elif new_marker not in cmake:
+        anchor = ")\n# TCP `disasm` command only (debug_server.c); stripped with the rest of the TCP\n"
+        insertion = """) 
+# Switch portability: retain renderer APIs and add the GL link shim.
+if(APE_SWITCH_PORT)
+    list(APPEND PSXRECOMP_RUNTIME_SOURCES
+        ${PSXRECOMP_ROOT}/runtime/src/gpu_gl_switch_shim.c)
 endif()
 # TCP `disasm` command only (debug_server.c); stripped with the rest of the TCP
 """
-        # Avoid formatting drift from the source's close-paren line.
         insertion = insertion.replace(") \n", ")\n")
         cmake = replace_once(cmake, anchor, insertion, "runtime source-list close")
-        write_text(cmake_path, cmake)
+
+    # Never enable the real Vulkan backend on the Switch toolchain. Keep its
+    # source file so it contributes its upstream inert API stubs.
+    old_vk_option = 'option(PSX_ENABLE_VULKAN "Build the Vulkan renderer backend when SDK tools are available" ON)'
+    new_vk_option = """if(APE_SWITCH_PORT)
+    option(PSX_ENABLE_VULKAN "Build the Vulkan renderer backend when SDK tools are available" OFF)
+else()
+    option(PSX_ENABLE_VULKAN "Build the Vulkan renderer backend when SDK tools are available" ON)
+endif()"""
+    if new_vk_option not in cmake:
+        cmake = replace_once(cmake, old_vk_option, new_vk_option, "Vulkan option default")
+    write_text(cmake_path, cmake)
+
+    # Switch-only desktop OpenGL entrypoints. SDL/OpenGL headers supply the
+    # declarations; definitions are inert and are never used for rendering.
+    # The GL renderer translation unit is kept for its shared non-GL APIs/state.
+    glshim_path = root / "runtime" / "src" / "gpu_gl_switch_shim.c"
+    glshim_marker = "Switch-only OpenGL link shim; software rendering is forced in main.cpp."
+    glshim = r\'''/* Switch-only OpenGL link shim; software rendering is forced in main.cpp.
+ *
+ * The PSX runtime's GL renderer translation unit also owns shared render-pass
+ * APIs and backdrop-stretch state used by other runtime modules. Retain that
+ * unit for ABI completeness, but this target cannot create a desktop GL context.
+ * The main Switch entrypoint forces GR_BACKEND_SOFTWARE; these inert symbols
+ * only satisfy references from the unused GL implementation and its diagnostics.
+ */
+#include "psx_sdl.h"
+#if defined(PSX_SDL3)
+#include <SDL3/SDL_opengl.h>
+#else
+#include <SDL_opengl.h>
+#endif
+#include <stddef.h>
+
+GLAPI void APIENTRY glBindTexture(GLenum, GLuint) {}
+GLAPI void APIENTRY glClear(GLbitfield) {}
+GLAPI void APIENTRY glClearColor(GLclampf, GLclampf, GLclampf, GLclampf) {}
+GLAPI void APIENTRY glClearDepth(GLclampd) {}
+GLAPI void APIENTRY glClearStencil(GLint) {}
+GLAPI void APIENTRY glColorMask(GLboolean, GLboolean, GLboolean, GLboolean) {}
+GLAPI void APIENTRY glCopyTexImage2D(GLenum, GLint, GLenum, GLint, GLint, GLsizei, GLsizei, GLint) {}
+GLAPI void APIENTRY glCopyTexSubImage2D(GLenum, GLint, GLint, GLint, GLint, GLint, GLsizei, GLsizei) {}
+GLAPI void APIENTRY glDeleteTextures(GLsizei, const GLuint *) {}
+GLAPI void APIENTRY glDepthFunc(GLenum) {}
+GLAPI void APIENTRY glDepthMask(GLboolean) {}
+GLAPI void APIENTRY glDisable(GLenum) {}
+GLAPI void APIENTRY glDrawArrays(GLenum, GLint, GLsizei) {}
+GLAPI void APIENTRY glEnable(GLenum) {}
+GLAPI void APIENTRY glFinish(void) {}
+GLAPI void APIENTRY glFlush(void) {}
+GLAPI void APIENTRY glGenTextures(GLsizei n, GLuint *textures) {
+    if (textures) for (GLsizei i = 0; i < n; ++i) textures[i] = 0;
+}
+GLAPI void APIENTRY glGetBooleanv(GLenum, GLboolean *data) {
+    if (data) for (int i = 0; i < 4; ++i) data[i] = GL_FALSE;
+}
+GLAPI GLenum APIENTRY glGetError(void) { return GL_NO_ERROR; }
+GLAPI void APIENTRY glGetIntegerv(GLenum, GLint *data) {
+    if (data) for (int i = 0; i < 4; ++i) data[i] = 0;
+}
+GLAPI const GLubyte *APIENTRY glGetString(GLenum) { return NULL; }
+GLAPI void APIENTRY glGetTexImage(GLenum, GLint, GLenum, GLenum, void *) {}
+GLAPI void APIENTRY glGetTexParameteriv(GLenum, GLenum, GLint *params) {
+    if (params) *params = 0;
+}
+GLAPI GLboolean APIENTRY glIsEnabled(GLenum) { return GL_FALSE; }
+GLAPI void APIENTRY glLineWidth(GLfloat) {}
+GLAPI void APIENTRY glPixelStorei(GLenum, GLint) {}
+GLAPI void APIENTRY glReadBuffer(GLenum) {}
+GLAPI void APIENTRY glReadPixels(GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, void *) {}
+GLAPI void APIENTRY glScissor(GLint, GLint, GLsizei, GLsizei) {}
+GLAPI void APIENTRY glStencilFunc(GLenum, GLint, GLuint) {}
+GLAPI void APIENTRY glStencilMask(GLuint) {}
+GLAPI void APIENTRY glStencilOp(GLenum, GLenum, GLenum) {}
+GLAPI void APIENTRY glTexImage2D(GLenum, GLint, GLint, GLsizei, GLsizei, GLint, GLenum, GLenum, const void *) {}
+GLAPI void APIENTRY glTexParameteri(GLenum, GLenum, GLint) {}
+GLAPI void APIENTRY glTexSubImage2D(GLenum, GLint, GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, const void *) {}
+GLAPI void APIENTRY glViewport(GLint, GLint, GLsizei, GLsizei) {}
+\'''
+    if not glshim_path.is_file() or glshim_marker not in read_text(glshim_path):
+        write_text(glshim_path, glshim)
 
     # gpu_render.c still exposes OpenGL/Vulkan as selectable config values. With
     # their implementations omitted, provide null backends so its established
     # software fallback handles such requests without unresolved symbols.
     render_path = root / "runtime" / "src" / "gpu_render.c"
     render = read_text(render_path)
-    render_marker = "/* Switch portability: desktop GL/Vulkan are not linked. */"
+    render_marker = "/* Switch portability: hardware renderers are not selected on libnx. */"
     if render_marker not in render:
         old = """/* Supplied by gpu_gl_renderer.c; returns NULL until the GL backend is ready. */
 extern const GpuRenderBackend *gl_backend_get(void);
 /* Supplied by gpu_vk_renderer.c; returns NULL until the Vulkan backend is
  * ready (init succeeded). When Vulkan isn't compiled in it returns NULL. */
 extern const GpuRenderBackend *vk_backend_get(void);"""
-        new = """/* Switch portability: desktop GL/Vulkan are not linked. */
+        new = """/* Switch portability: hardware renderers are not selected on libnx. */
 #if defined(PSX_RYUJINX_SDCARD_SCAN)
 static const GpuRenderBackend *gl_backend_get(void) { return NULL; }
 static const GpuRenderBackend *vk_backend_get(void) { return NULL; }
@@ -169,7 +262,42 @@ const char *autocompile_degraded_reason(void) {
         dma = replace_once(dma, old, new, "DMA host diagnostic clock")
         write_text(dma_path, dma)
 
-    print("Applied Switch renderer, overlay-compiler, BIOS-builder, and clock portability patches")
+    # A software backend is mandatory: there is no desktop GL context on libnx.
+    main_path = root / "runtime" / "src" / "main.cpp"
+    main = read_text(main_path)
+    main_marker = "/* Switch portability: force the software renderer on libnx. */"
+    if main_marker not in main:
+        anchor = "#endif\n    /* Netplay: CPU VRAM is digest/snap authority. Prefer dual-raster OpenGL"
+        replacement = """#endif
+#if defined(PSX_RYUJINX_SDCARD_SCAN)
+    /* Switch portability: force the software renderer on libnx. */
+    g_headless_opengl = 0;
+    g_video_renderer = 0;
+    std::fprintf(stdout, "psxrecomp: Switch build forces software GPU rendering\\n");
+#endif
+    /* Netplay: CPU VRAM is digest/snap authority. Prefer dual-raster OpenGL"""
+        main = replace_once(main, anchor, replacement, "Switch software-renderer selection")
+        write_text(main_path, main)
+
+    # Mods that materialize a derived disc currently launch an external xdelta
+    # process (fork/exec/waitpid). Disable only that optional operation on Switch.
+    mod_path = root / "runtime" / "src" / "mod_runtime.cpp"
+    mod_runtime = read_text(mod_path)
+    mod_marker = "/* Switch portability: derived-disc xdelta execution is unavailable on libnx. */"
+    if mod_marker not in mod_runtime:
+        old = "#else\n    const pid_t child = fork();\n"
+        new = """#elif defined(PSX_RYUJINX_SDCARD_SCAN)
+    /* Switch portability: derived-disc xdelta execution is unavailable on libnx. */
+    (void)executable; (void)source; (void)patch; (void)output;
+    if (error) *error = "derived-disc mod patches are not supported by this Switch build";
+    return false;
+#else
+    const pid_t child = fork();
+"""
+        mod_runtime = replace_once(mod_runtime, old, new, "Switch derived-disc process launcher")
+        write_text(mod_path, mod_runtime)
+
+    print("Applied Switch software-renderer, GL-link, overlay-compiler, BIOS-builder, derived-disc, and clock portability patches")
     return 0
 
 
