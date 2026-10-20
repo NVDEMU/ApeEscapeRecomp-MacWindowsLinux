@@ -92,7 +92,7 @@ jobs:
               export DEVKITPRO=/opt/devkitpro
               export WUT_ROOT=/opt/devkitpro/wut
               /opt/devkitpro/portlibs/wiiu/bin/powerpc-eabi-cmake \
-                -S /src -B /src/build-wiiu -G Ninja \
+                -S /src -B /src/build-wiiu \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DBUILD_TESTING=OFF \
                 -DAPE_WIIU_PORT=ON
