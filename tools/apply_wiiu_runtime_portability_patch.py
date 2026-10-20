@@ -433,6 +433,20 @@ static __thread int t_render;
         )
         write_text(render_thread_path, render_thread)
 
+    # rt_tick_at used to read t_render directly. Since Wii U avoids ELF TLS,
+    # route this check through the platform-neutral render-thread identity API.
+    render_tick_marker = "/* Wii U portability: rt_tick_at uses portable thread identity. */"
+    if render_tick_marker not in render_thread:
+        old_tick = "    if (!t_render || !deadline_ns) return;"
+        new_tick = """    /* Wii U portability: rt_tick_at uses portable thread identity. */
+#if defined(PSX_APE_WIIU_PORT)
+    if (!rt_on_render_thread() || !deadline_ns) return;
+#else
+    if (!t_render || !deadline_ns) return;
+#endif"""
+        render_thread = replace_once(render_thread, old_tick, new_tick, "render-thread deadline guard")
+        write_text(render_thread_path, render_thread)
+
     print("Applied Wii U software-renderer, GL-link, overlay-compiler, BIOS-builder, derived-disc, and clock portability patches")
     return 0
 
