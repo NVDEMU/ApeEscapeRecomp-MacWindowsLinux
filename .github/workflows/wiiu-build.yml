@@ -251,7 +251,7 @@ jobs:
           set +e
           timeout --signal=TERM --kill-after=8s 75s xvfb-run -a \
             --server-args="-screen 0 1280x720x24" \
-            bash -c '
+            bash <<'CEMU_TEST_SCRIPT'
               set -uo pipefail
               LOG_PATH="$CEMU_TEST_OUTPUT/cemu.log"
               SCREENSHOT_ERRORS="$CEMU_TEST_OUTPUT/screenshot-errors.log"
@@ -303,7 +303,7 @@ jobs:
               done
               kill -KILL "$CEMU_PID" 2>/dev/null || true
               wait "$CEMU_PID" 2>/dev/null || true
-            '
+CEMU_TEST_SCRIPT
           CEMU_TEST_EXIT=$?
           set -e
 
