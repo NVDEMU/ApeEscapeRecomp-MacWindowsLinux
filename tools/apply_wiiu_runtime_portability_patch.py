@@ -82,7 +82,28 @@ else()
 endif()"""
     if new_vk_option not in cmake:
         cmake = replace_once(cmake, old_vk_option, new_vk_option, "Vulkan option default")
-    write_text(cmake_path, cmake)
+    # The pinned runtime resolves and links OpenGL independently of its
+    # optional launcher UI. That discovery is invalid on Cafe OS even when the
+    # renderer is forced to software, so skip only the desktop GL link resolver
+    # for this target. Desktop configurations keep the upstream block intact.
+    gl_start = '        if(NOT COMMAND recomp_resolve_gl\\n           AND RECOMP_UI_ROOT AND EXISTS "${RECOMP_UI_ROOT}/cmake/recomp_gl.cmake")'
+    gl_end_marker = "        # The overlay autocompile watcher (autocompile.c), the debug server and\\n"
+    if "Wii U portability: skip desktop GL link resolution on Cafe OS." not in cmake:
+        gl_pos = cmake.find(gl_start)
+        gl_end = cmake.find(gl_end_marker, gl_pos)
+        if gl_pos < 0 or gl_end < 0:
+            raise RuntimeError("Could not locate runtime desktop OpenGL link-resolution block")
+        gl_block = cmake[gl_pos:gl_end]
+        # Skip all GL resolution/linking, not the following Threads linkage.
+        cmake = (cmake[:gl_pos]
+                 + "        # Wii U portability: skip desktop GL link resolution on Cafe OS.\\n"
+                   "        if(NOT APE_WIIU_PORT)\\n"
+                 + gl_block
+                 + "        endif()\\n"
+                 + cmake[gl_end:])
+        write_text(cmake_path, cmake)
+    else:
+        write_text(cmake_path, cmake)
 
     # Wii U-only desktop OpenGL entrypoints. SDL/OpenGL headers supply the
     # declarations; definitions are inert and are never used for rendering.
