@@ -175,7 +175,7 @@ jobs:
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y xvfb xauth unzip curl mame-tools \
+          sudo apt-get install -y xvfb xauth unzip curl mame-tools libbluetooth3 \
             libvulkan1 mesa-vulkan-drivers libgtk-3-0t64 libpulse0 \
             libsecret-1-0 libxkbcommon0 libglu1-mesa libgdk-pixbuf-2.0-0
 
@@ -199,9 +199,20 @@ jobs:
           fi
           chmod u+x "$CEMU_BIN"
           test -x "$CEMU_BIN"
+          # Fail here with the exact missing shared libraries instead of letting
+          # the later RPX smoke test misreport an environment failure as an RPX crash.
+          if ! ldd "$CEMU_BIN" > "$RUNNER_TEMP/cemu-ldd.txt"; then
+            cat "$RUNNER_TEMP/cemu-ldd.txt"
+            exit 1
+          fi
+          cat "$RUNNER_TEMP/cemu-ldd.txt"
+          if grep -q "not found" "$RUNNER_TEMP/cemu-ldd.txt"; then
+            echo "::error::Cemu has missing shared libraries; install the corresponding Ubuntu runtime packages."
+            exit 1
+          fi
           echo "CEMU_BIN=$CEMU_BIN" >> "$GITHUB_ENV"
           mkdir -p "$(dirname "$CEMU_BIN")/portable" "$(dirname "$CEMU_BIN")/mlc01"
-          "$CEMU_BIN" --version || true
+          "$CEMU_BIN" --version
 
       - name: Download original disc privately for virtual SD mount
         env:
