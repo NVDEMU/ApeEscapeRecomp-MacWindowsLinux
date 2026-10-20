@@ -48,11 +48,18 @@ need real-console testing.
 
 ## Testing through Cemu
 
-**Yes — Cemu can be used at school for rapid iteration.** Its current launch
-options support selecting a game with `-g`/ `--game` and mounting a host
-directory into the emulated Wii U filesystem with `--cos-mounts`. You can run
-the RPX directly without an Aroma console. See the current
-[Cemu launch-options implementation](https://github.com/cemu-project/Cemu/blob/main/src/config/LaunchSettings.cpp).
+Cemu can be used for **optional desktop-side smoke testing** of the RPX, but it
+is not required to build the project and it does not replace testing on a real
+Wii U. Whether you can run Cemu on a particular computer depends on that
+computer's operating system, graphics support, installed software, and the
+permissions or policies set by its owner or administrator. This documentation
+does not imply that Cemu is available or permitted on school-managed computers.
+
+Cemu's launch options include selecting a game with `-g` / `--game` and
+mounting a host directory into the emulated Wii U filesystem with
+`--cos-mounts`. See the
+[Cemu launch-options implementation](https://github.com/cemu-project/Cemu/blob/main/src/config/LaunchSettings.cpp)
+for current details; options can change between Cemu versions.
 
 Create a host folder that mirrors the SD-card layout and place your own dumped
 game image here:
@@ -85,9 +92,13 @@ mount mirrors the console layout. If Cemu is installed elsewhere, adjust the
 executable path. You can also use the GUI's RPX load option for basic launch
 testing, but the explicit mount is useful for checking SD-based disc discovery.
 
-Cemu testing does **not** replace hardware testing: filesystem mapping,
-timing, memory limits, SDL2 video/audio, controller behavior, and software
-renderer performance may differ on the real Wii U.
+CI-based Cemu tests run in a separate GitHub Actions environment. A CI result
+does not establish that Cemu will run on your own computer, and a grey or blank
+Cemu window is not proof that the game rendered correctly.
+
+Cemu testing does **not** replace hardware testing: filesystem mapping, timing,
+memory limits, SDL2 video/audio, controller behavior, and software renderer
+performance may differ on the real Wii U.
 
 ## Current limitations
 
