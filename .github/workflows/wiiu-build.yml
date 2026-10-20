@@ -177,7 +177,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y xvfb xauth unzip curl mame-tools libbluetooth3 \
             libvulkan1 mesa-vulkan-drivers libgtk-3-0t64 libpulse0 \
-            libsecret-1-0 libxkbcommon0 libglu1-mesa libgdk-pixbuf-2.0-0
+            libsecret-1-0 libxkbcommon0 libglu1-mesa libgdk-pixbuf-2.0-0 imagemagick
 
       - name: Download and verify Cemu
         run: |
@@ -232,28 +232,112 @@ jobs:
           cp "$RUNNER_TEMP/Ape Escape (USA).cue" "$RUNNER_TEMP/cemu-sd/wiiu/apeescape/"
           cp "$RUNNER_TEMP/Ape Escape (USA).bin" "$RUNNER_TEMP/cemu-sd/wiiu/apeescape/"
 
-      - name: Launch RPX in Cemu for 30-second smoke test
+      - name: Launch RPX in Cemu and capture startup for 60 seconds
         shell: bash
         run: |
           set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/cemu-test-output"
           mapfile -t RPX_FILES < <(find wiiu-artifact -maxdepth 1 -type f -name '*.rpx' -print)
-          if [ "${#RPX_FILES[@]}" -ne 1 ]; then
-            echo "::error::Expected exactly one RPX artifact, found ${#RPX_FILES[@]}."
+          if [ "\${#RPX_FILES[@]}" -ne 1 ]; then
+            echo "::error::Expected exactly one RPX artifact, found \${#RPX_FILES[@]}."
             ls -la wiiu-artifact
             exit 1
           fi
+
           export VK_ICD_FILENAMES=/usr/share/vulkan/icd.d/lvp_icd.x86_64.json
+          export CEMU_TEST_OUTPUT="$RUNNER_TEMP/cemu-test-output"
+          export CEMU_SD_ROOT="$RUNNER_TEMP/cemu-sd"
+          export RPX_TO_LAUNCH="\${RPX_FILES[0]}"
           set +e
-          timeout --signal=TERM --kill-after=8s 30s xvfb-run -a \
+          timeout --signal=TERM --kill-after=8s 75s xvfb-run -a \
             --server-args="-screen 0 1280x720x24" \
-            "$CEMU_BIN" -g "${RPX_FILES[0]}" \
-            --cos-mounts "$RUNNER_TEMP/cemu-sd:/vol/external01/" \
-            --forward-console-logging > "$RUNNER_TEMP/cemu-smoke.log" 2>&1
-          CEMU_EXIT=$?
+            bash -c '
+              set -uo pipefail
+              LOG_PATH="$CEMU_TEST_OUTPUT/cemu.log"
+              SCREENSHOT_ERRORS="$CEMU_TEST_OUTPUT/screenshot-errors.log"
+              "$CEMU_BIN" -g "$RPX_TO_LAUNCH" \
+                --cos-mounts "$CEMU_SD_ROOT:/vol/external01/" \
+                --forward-console-logging > "$LOG_PATH" 2>&1 &
+              CEMU_PID=$!
+              echo "Started Cemu (PID $CEMU_PID) with RPX: $RPX_TO_LAUNCH"
+              echo "Virtual SD mount: $CEMU_SD_ROOT -> /vol/external01/"
+          
+              sleep 15
+              if ! kill -0 "$CEMU_PID" 2>/dev/null; then
+                wait "$CEMU_PID"
+                CEMU_STATUS=$?
+                echo "Cemu exited before the first screenshot (exit $CEMU_STATUS)."
+                exit 1
+              fi
+              if import -window root -silent "$CEMU_TEST_OUTPUT/cemu-after-15s.png" 2>>"$SCREENSHOT_ERRORS"; then
+                echo "Captured Cemu display after 15 seconds."
+              else
+                echo "Could not capture the 15-second screenshot; see screenshot-errors.log."
+              fi
+
+              sleep 30
+              if ! kill -0 "$CEMU_PID" 2>/dev/null; then
+                wait "$CEMU_PID"
+                CEMU_STATUS=$?
+                echo "Cemu exited before the second screenshot (exit $CEMU_STATUS)."
+                exit 1
+              fi
+              if import -window root -silent "$CEMU_TEST_OUTPUT/cemu-after-45s.png" 2>>"$SCREENSHOT_ERRORS"; then
+                echo "Captured Cemu display after 45 seconds."
+              else
+                echo "Could not capture the 45-second screenshot; see screenshot-errors.log."
+              fi
+
+              sleep 15
+              if ! kill -0 "$CEMU_PID" 2>/dev/null; then
+                wait "$CEMU_PID"
+                CEMU_STATUS=$?
+                echo "Cemu exited before completing the 60-second startup test (exit $CEMU_STATUS)."
+                exit 1
+              fi
+              echo "Cemu remained alive for 60 seconds after the RPX launch."
+              kill -TERM "$CEMU_PID" 2>/dev/null || true
+              for attempt in 1 2 3 4 5; do
+                if ! kill -0 "$CEMU_PID" 2>/dev/null; then break; fi
+                sleep 1
+              done
+              kill -KILL "$CEMU_PID" 2>/dev/null || true
+              wait "$CEMU_PID" 2>/dev/null || true
+            '
+          CEMU_TEST_EXIT=$?
           set -e
-          cat "$RUNNER_TEMP/cemu-smoke.log"
-          if [ "$CEMU_EXIT" -ne 124 ] && [ "$CEMU_EXIT" -ne 137 ]; then
-            echo "::error::Cemu did not remain running for the 30-second RPX smoke test (exit $CEMU_EXIT)."
-            exit 1
+
+          if [ -f "$RUNNER_TEMP/cemu-test-output/cemu.log" ]; then
+            cat "$RUNNER_TEMP/cemu-test-output/cemu.log"
+          else
+            echo "::error::Cemu did not create its startup log."
           fi
-          echo "Cemu stayed alive for the 30-second RPX smoke window with the virtual SD mount."
+
+          if grep -E "psxrecomp: found game disc via SD-card (fallback|scan):" \
+              "$RUNNER_TEMP/cemu-test-output/cemu.log" \
+              > "$RUNNER_TEMP/cemu-test-output/disc-discovery.txt"; then
+            echo "Runtime log confirms that a game disc was discovered from the virtual SD card:"
+            cat "$RUNNER_TEMP/cemu-test-output/disc-discovery.txt"
+          else
+            echo "::warning::No explicit SD-card disc-discovery message appeared in Cemu's forwarded log. Inspect the uploaded log and screenshots."
+          fi
+
+          if [ -f "$RUNNER_TEMP/cemu-test-output/cemu-after-15s.png" ]; then
+            file "$RUNNER_TEMP/cemu-test-output/cemu-after-15s.png"
+          fi
+          if [ -f "$RUNNER_TEMP/cemu-test-output/cemu-after-45s.png" ]; then
+            file "$RUNNER_TEMP/cemu-test-output/cemu-after-45s.png"
+          fi
+          if [ "$CEMU_TEST_EXIT" -ne 0 ]; then
+            echo "::error::Cemu/RPX startup test failed (exit $CEMU_TEST_EXIT). See uploaded diagnostics."
+            exit "$CEMU_TEST_EXIT"
+          fi
+
+      - name: Upload Cemu screenshots and startup logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: Cemu-WiiU-launch-diagnostics-\${{ github.sha }}
+          path: \${{ runner.temp }}/cemu-test-output/
+          if-no-files-found: warn
+          retention-days: 14
