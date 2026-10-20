@@ -101,6 +101,8 @@ jobs:
                 -S /src -B /src/build-wiiu \
                 -DCMAKE_BUILD_TYPE=Release \
                 -DBUILD_TESTING=OFF \
+                -DPSX_RECOMP_UI:BOOL=OFF \
+                -DPSX_SETUP_WIZARD:BOOL=OFF \
                 -DAPE_WIIU_PORT=ON
               cmake --build /src/build-wiiu --parallel 2
             '
