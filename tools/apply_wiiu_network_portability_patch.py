@@ -164,7 +164,7 @@ def main() -> int:
      * Keep the socket in its original nonblocking mode. */
 #endif"""
         debug = replace_exactly_once(debug, old_timeout, new_timeout, "Wii U send timeout guard")
-        debug_path.write_text(debug, encoding="utf-8", newline="\\n")
+        debug_path.write_text(debug, encoding="utf-8", newline="\n")
 
     # Cafe OS does not ship POSIX ucontext.h. Add a real cooperative PowerPC
     # fiber backend for Wii U rather than stubbing thread Wii Ues (the PS1
@@ -319,7 +319,7 @@ psx_fiber_switch_asm:
     .size psx_fiber_switch_asm,.-psx_fiber_switch_asm
 """
     if not asm_path.is_file() or asm_marker not in asm_path.read_text(encoding="utf-8-sig"):
-        asm_path.write_text(asm_source, encoding="utf-8", newline="\\n")
+        asm_path.write_text(asm_source, encoding="utf-8", newline="\n")
 
     source_path.write_text(source, encoding="utf-8", newline="\n")
     print("Applied Wii U network and dynamic-overlay portability patches")
