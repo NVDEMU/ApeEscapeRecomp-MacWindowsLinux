@@ -90,7 +90,11 @@ jobs:
           set -euo pipefail
           python3 tools/apply_switch_network_portability_patch.py --framework-root "$PWD/psxrecomp-v4"
           python3 tools/apply_switch_sdcard_patch.py --framework-root "$PWD/psxrecomp-v4"
+          python3 tools/apply_switch_runtime_portability_patch.py --framework-root "$PWD/psxrecomp-v4"
           grep -q 'PSX_RYUJINX_SDCARD_SCAN' psxrecomp-v4/runtime/src/main.cpp
+          grep -q 'exclude host GL/Vulkan renderers' psxrecomp-v4/runtime/runtime.cmake
+          grep -q 'no process-spawned overlay compiler' psxrecomp-v4/runtime/src/autocompile.c
+          grep -q 'libnx diagnostic clock fallback' psxrecomp-v4/runtime/src/dma.c
 
       - name: Configure full application for Switch
         shell: bash
