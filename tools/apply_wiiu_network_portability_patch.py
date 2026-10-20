@@ -203,61 +203,9 @@ static void psx_fiber_trampoline(void)
     abort();
 }
 
-/* Save/restore the PowerPC EABI callee-saved register bank and stack pointer. */
-__attribute__((naked)) static void psx_fiber_switch_asm(psx_fiber_impl* from, psx_fiber_impl* to)
-{
-    __asm__ volatile(
-        "stw 1, 0(3)\n"
-        "stw 2, 4(3)\n"
-        "stw 13, 8(3)\n"
-        "stmw 14, 12(3)\n"
-        "mflr 0\n"
-        "stw 0, 84(3)\n"
-        "stfd 14, 88(3)\n"
-        "stfd 15, 96(3)\n"
-        "stfd 16, 104(3)\n"
-        "stfd 17, 112(3)\n"
-        "stfd 18, 120(3)\n"
-        "stfd 19, 128(3)\n"
-        "stfd 20, 136(3)\n"
-        "stfd 21, 144(3)\n"
-        "stfd 22, 152(3)\n"
-        "stfd 23, 160(3)\n"
-        "stfd 24, 168(3)\n"
-        "stfd 25, 176(3)\n"
-        "stfd 26, 184(3)\n"
-        "stfd 27, 192(3)\n"
-        "stfd 28, 200(3)\n"
-        "stfd 29, 208(3)\n"
-        "stfd 30, 216(3)\n"
-        "stfd 31, 224(3)\n"
-        "lwz 1, 0(4)\n"
-        "lwz 2, 4(4)\n"
-        "lwz 13, 8(4)\n"
-        "lmw 14, 12(4)\n"
-        "lwz 0, 84(4)\n"
-        "mtlr 0\n"
-        "lfd 14, 88(4)\n"
-        "lfd 15, 96(4)\n"
-        "lfd 16, 104(4)\n"
-        "lfd 17, 112(4)\n"
-        "lfd 18, 120(4)\n"
-        "lfd 19, 128(4)\n"
-        "lfd 20, 136(4)\n"
-        "lfd 21, 144(4)\n"
-        "lfd 22, 152(4)\n"
-        "lfd 23, 160(4)\n"
-        "lfd 24, 168(4)\n"
-        "lfd 25, 176(4)\n"
-        "lfd 26, 184(4)\n"
-        "lfd 27, 192(4)\n"
-        "lfd 28, 200(4)\n"
-        "lfd 29, 208(4)\n"
-        "lfd 30, 216(4)\n"
-        "lfd 31, 224(4)\n"
-        "blr\n"
-    );
-}
+/* Defined in psx_fiber_switch_wiiu.S. GCC does not support its naked
+ * attribute on this PowerPC target, so the register switch must be pure asm. */
+extern void psx_fiber_switch_asm(psx_fiber_impl* from, psx_fiber_impl* to);
 
 psx_fiber_t psx_fiber_convert_thread(void)
 {
@@ -309,6 +257,69 @@ void psx_fiber_destroy(psx_fiber_t fiber)
     if fiber_backend not in fiber:
         fiber = replace_exactly_once(fiber, fiber_anchor, fiber_backend, "ucontext backend insertion")
         fiber_path.write_text(fiber, encoding="utf-8", newline="\n")
+
+    # Dedicated PowerPC assembly switch: save/restore the EABI nonvolatile
+    # registers without any compiler-generated prologue/epilogue.
+    asm_path = args.framework_root / "runtime" / "src" / "psx_fiber_switch_wiiu.S"
+    asm_marker = "psx_fiber_switch_asm:"
+    asm_source = r""".text
+    .align 2
+    .globl psx_fiber_switch_asm
+    .type psx_fiber_switch_asm,@function
+psx_fiber_switch_asm:
+    stw 1, 0(3)
+    stw 2, 4(3)
+    stw 13, 8(3)
+    stmw 14, 12(3)
+    mflr 0
+    stw 0, 84(3)
+    stfd 14, 88(3)
+    stfd 15, 96(3)
+    stfd 16, 104(3)
+    stfd 17, 112(3)
+    stfd 18, 120(3)
+    stfd 19, 128(3)
+    stfd 20, 136(3)
+    stfd 21, 144(3)
+    stfd 22, 152(3)
+    stfd 23, 160(3)
+    stfd 24, 168(3)
+    stfd 25, 176(3)
+    stfd 26, 184(3)
+    stfd 27, 192(3)
+    stfd 28, 200(3)
+    stfd 29, 208(3)
+    stfd 30, 216(3)
+    stfd 31, 224(3)
+    lwz 1, 0(4)
+    lwz 2, 4(4)
+    lwz 13, 8(4)
+    lmw 14, 12(4)
+    lwz 0, 84(4)
+    mtlr 0
+    lfd 14, 88(4)
+    lfd 15, 96(4)
+    lfd 16, 104(4)
+    lfd 17, 112(4)
+    lfd 18, 120(4)
+    lfd 19, 128(4)
+    lfd 20, 136(4)
+    lfd 21, 144(4)
+    lfd 22, 152(4)
+    lfd 23, 160(4)
+    lfd 24, 168(4)
+    lfd 25, 176(4)
+    lfd 26, 184(4)
+    lfd 27, 192(4)
+    lfd 28, 200(4)
+    lfd 29, 208(4)
+    lfd 30, 216(4)
+    lfd 31, 224(4)
+    blr
+    .size psx_fiber_switch_asm,.-psx_fiber_switch_asm
+"""
+    if not asm_path.is_file() or asm_marker not in asm_path.read_text(encoding="utf-8-sig"):
+        asm_path.write_text(asm_source, encoding="utf-8", newline="\\n")
 
     source_path.write_text(source, encoding="utf-8", newline="\n")
     print("Applied Wii U network and dynamic-overlay portability patches")
