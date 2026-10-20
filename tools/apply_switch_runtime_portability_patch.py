@@ -89,7 +89,7 @@ endif()"""
     # The GL renderer translation unit is kept for its shared non-GL APIs/state.
     glshim_path = root / "runtime" / "src" / "gpu_gl_switch_shim.c"
     glshim_marker = "Switch-only OpenGL link shim; software rendering is forced in main.cpp."
-    glshim = r\'''/* Switch-only OpenGL link shim; software rendering is forced in main.cpp.
+    glshim = r'''/* Switch-only OpenGL link shim; software rendering is forced in main.cpp.
  *
  * The PSX runtime's GL renderer translation unit also owns shared render-pass
  * APIs and backdrop-stretch state used by other runtime modules. Retain that
@@ -149,7 +149,7 @@ GLAPI void APIENTRY glTexImage2D(GLenum, GLint, GLint, GLsizei, GLsizei, GLint, 
 GLAPI void APIENTRY glTexParameteri(GLenum, GLenum, GLint) {}
 GLAPI void APIENTRY glTexSubImage2D(GLenum, GLint, GLint, GLint, GLsizei, GLsizei, GLenum, GLenum, const void *) {}
 GLAPI void APIENTRY glViewport(GLint, GLint, GLsizei, GLsizei) {}
-\'''
+'''
     if not glshim_path.is_file() or glshim_marker not in read_text(glshim_path):
         write_text(glshim_path, glshim)
 
