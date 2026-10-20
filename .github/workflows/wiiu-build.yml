@@ -211,7 +211,29 @@ jobs:
             exit 1
           fi
           echo "CEMU_BIN=$CEMU_BIN" >> "$GITHUB_ENV"
-          mkdir -p "$(dirname "$CEMU_BIN")/portable" "$(dirname "$CEMU_BIN")/mlc01"
+          # Cemu opens a modal first-run wizard whenever portable/settings.xml is
+          # missing. That dialog blocks the command-line -g RPX launch in CI.
+          # Pre-seed a minimal valid config so Cemu skips the wizard entirely.
+          CEMU_PORTABLE="$(dirname "$CEMU_BIN")/portable"
+          CEMU_MLC="$CEMU_PORTABLE/mlc01"
+          mkdir -p "$CEMU_PORTABLE" "$CEMU_MLC" "$CEMU_PORTABLE/controllerProfiles"
+          cat > "$CEMU_PORTABLE/settings.xml" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <content>
+            <mlc_path>$CEMU_MLC</mlc_path>
+            <GamePaths/>
+          </content>
+          EOF
+          test -s "$CEMU_PORTABLE/settings.xml"
+          python3 - "$CEMU_PORTABLE/settings.xml" "$CEMU_MLC" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          root = ET.parse(sys.argv[1]).getroot()
+          assert root.tag == "content", f"unexpected Cemu config root: {root.tag}"
+          assert root.findtext("mlc_path") == sys.argv[2], "Cemu MLC path was not saved"
+          print(f"Seeded Cemu portable configuration: {sys.argv[1]}")
+          print(f"Cemu MLC path: {sys.argv[2]}")
+          PY
           "$CEMU_BIN" --version
 
       - name: Download original disc privately for virtual SD mount
