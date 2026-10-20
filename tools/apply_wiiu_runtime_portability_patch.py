@@ -86,8 +86,8 @@ endif()"""
     # optional launcher UI. That discovery is invalid on Cafe OS even when the
     # renderer is forced to software, so skip only the desktop GL link resolver
     # for this target. Desktop configurations keep the upstream block intact.
-    gl_start = '        if(NOT COMMAND recomp_resolve_gl\\n           AND RECOMP_UI_ROOT AND EXISTS "${RECOMP_UI_ROOT}/cmake/recomp_gl.cmake")'
-    gl_end_marker = "        # The overlay autocompile watcher (autocompile.c), the debug server and\\n"
+    gl_start = '        if(NOT COMMAND recomp_resolve_gl\n           AND RECOMP_UI_ROOT AND EXISTS "${RECOMP_UI_ROOT}/cmake/recomp_gl.cmake")'
+    gl_end_marker = "        # The overlay autocompile watcher (autocompile.c), the debug server and\n"
     if "Wii U portability: skip desktop GL link resolution on Cafe OS." not in cmake:
         gl_pos = cmake.find(gl_start)
         gl_end = cmake.find(gl_end_marker, gl_pos)
@@ -96,10 +96,10 @@ endif()"""
         gl_block = cmake[gl_pos:gl_end]
         # Skip all GL resolution/linking, not the following Threads linkage.
         cmake = (cmake[:gl_pos]
-                 + "        # Wii U portability: skip desktop GL link resolution on Cafe OS.\\n"
-                   "        if(NOT APE_WIIU_PORT)\\n"
+                 + "        # Wii U portability: skip desktop GL link resolution on Cafe OS.\n"
+                   "        if(NOT APE_WIIU_PORT)\n"
                  + gl_block
-                 + "        endif()\\n"
+                 + "        endif()\n"
                  + cmake[gl_end:])
         write_text(cmake_path, cmake)
     else:
