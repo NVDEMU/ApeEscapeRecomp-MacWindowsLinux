@@ -269,6 +269,15 @@ jobs:
           python3 tools/download_disc.py "$RUNNER_TEMP/Ape Escape (USA).chd"
           chdman verify -i "$RUNNER_TEMP/Ape Escape (USA).chd"
           mkdir -p "$RUNNER_TEMP/cemu-sd/wiiu/apeescape"
+          # Direct RPX launches in Cemu do not reliably expose the host artifact
+          # directory as argv[0]. Mirror the normal SD app layout so the Wii U
+          # runtime can locate game.toml and OpenBIOS via /vol/external01.
+          APP_SD="$RUNNER_TEMP/cemu-sd/wiiu/apps/ApeEscapeRecomp"
+          mkdir -p "$APP_SD"
+          cp wiiu-artifact/game.toml "$APP_SD/game.toml"
+          cp -R wiiu-artifact/bios "$APP_SD/bios"
+          cp -R wiiu-artifact/mods "$APP_SD/mods"
+          cp -R wiiu-artifact/assets "$APP_SD/assets"
           chdman extractcd \
             -i "$RUNNER_TEMP/Ape Escape (USA).chd" \
             -o "$RUNNER_TEMP/Ape Escape (USA).cue" \
