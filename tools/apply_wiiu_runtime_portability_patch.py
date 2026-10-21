@@ -682,6 +682,32 @@ int main(int argc, char** argv) {"""
 #endif'''
         main = replace_once(main, vblank_anchor, vblank_patch, "Wii U guest-progress diagnostic")
 
+    # Print the compiled default and direct mounted-file visibility independently
+    # of game_config_path, so a blank config can be separated into a bad CMake
+    # define versus a Cemu/console filesystem mount problem.
+    config_probe_marker = "Wii U portability: report compiled config and mounted app roots."
+    if config_probe_marker not in main:
+        config_probe = '''    /* Wii U portability: report compiled config and mounted app roots. */
+    ape_wiiu_diagf("DEFAULT CFG: %s", PSX_DEFAULT_GAME_CONFIG_PATH);
+    {
+        std::error_code ape_cfg_ec;
+        const bool ape_cfg_mount = std::filesystem::exists(
+            std::filesystem::path("/vol/external01/wiiu/apps/ApeEscapeRecomp/game.toml"),
+            ape_cfg_ec);
+        ape_cfg_ec.clear();
+        const bool ape_cfg_sd = std::filesystem::exists(
+            std::filesystem::path("sd:/wiiu/apps/ApeEscapeRecomp/game.toml"),
+            ape_cfg_ec);
+        ape_wiiu_diagf("APP MOUNT CFG: %s", ape_cfg_mount ? "YES" : "NO");
+        ape_wiiu_diagf("sd:/ APP CFG: %s", ape_cfg_sd ? "YES" : "NO");
+    }'''
+        main = replace_once(
+            main,
+            '    ape_wiiu_diag("STAGE 1: runtime main entered");',
+            '    ape_wiiu_diag("STAGE 1: runtime main entered");\n' + config_probe,
+            "Wii U compiled config / mount visibility diagnostic"
+        )
+
     write_text(main_path, main)
 
     # Mods that materialize a derived disc'' currently launch an external xdelta
