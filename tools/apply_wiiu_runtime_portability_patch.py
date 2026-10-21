@@ -398,6 +398,71 @@ const char *autocompile_degraded_reason(void) {
         # On-screen boot trace for Cemu/real-console diagnosis. Cemu does not forward
     # Cafe OS stdout/stderr from RPX code, so a grey viewport otherwise hides the
     # stage at which the app stopped. This is scoped to APE_WIIU_PORT only.
+    # Cemu runs a directly selected RPX with an argv[0] that may not map to the
+    # host directory containing the artifact. Resolve runtime sidecars from the
+    # mounted SD app folder as well, so game.toml and OpenBIOS are discoverable.
+    sidecar_marker = "/* Wii U portability: search the mounted SD app folder for relative sidecars. */"
+    if sidecar_marker not in main:
+        old_runtime_path = """    fs::path found = find_upward(root, p);
+    if (!found.empty()) return PSXRecompV4::host_absolute(found / p, ec);
+    return {};
+}"""
+        new_runtime_path = """    fs::path found = find_upward(root, p);
+    if (!found.empty()) return PSXRecompV4::host_absolute(found / p, ec);
+#if defined(PSX_APE_WIIU_PORT)
+    /* Wii U portability: search the mounted SD app folder for relative sidecars. */
+    const fs::path mounted_app_roots[] = {
+        fs::path("/vol/external01/wiiu/apps/ApeEscapeRecomp"),
+        fs::path("sd:/wiiu/apps/ApeEscapeRecomp"),
+        fs::path("/vol/external01/wiiu/apps/ApeEscapeRecomp/data"),
+        fs::path("sd:/wiiu/apps/ApeEscapeRecomp/data")
+    };
+    for (const fs::path& mount_root : mounted_app_roots) {
+        ec.clear();
+        const fs::path candidate = mount_root / p;
+        if (fs::exists(candidate, ec))
+            return PSXRecompV4::host_absolute(candidate, ec);
+        const fs::path mount_found = find_upward(mount_root, p);
+        if (!mount_found.empty())
+            return PSXRecompV4::host_absolute(mount_found / p, ec);
+    }
+#endif
+    return {};
+}"""
+        main = replace_once(
+            main, old_runtime_path, new_runtime_path, "Wii U mounted sidecar path search"
+        )
+
+        old_bios_return = """    found = find_upward(exe_dir_from_argv(argv0), dev_marker);
+    if (!found.empty()) return found / dev_marker;
+    return p;
+}"""
+        new_bios_return = """    found = find_upward(exe_dir_from_argv(argv0), dev_marker);
+    if (!found.empty()) return found / dev_marker;
+#if defined(PSX_APE_WIIU_PORT)
+    /* Wii U portability: the RPX may be selected directly in Cemu, so its
+     * argv[0] need not be the mounted SD app folder. Search that folder for
+     * the bundled OpenBIOS path too. */
+    const fs::path mounted_app_roots[] = {
+        fs::path("/vol/external01/wiiu/apps/ApeEscapeRecomp"),
+        fs::path("sd:/wiiu/apps/ApeEscapeRecomp"),
+        fs::path("/vol/external01/wiiu/apps/ApeEscapeRecomp/data"),
+        fs::path("sd:/wiiu/apps/ApeEscapeRecomp/data")
+    };
+    for (const fs::path& mount_root : mounted_app_roots) {
+        ec.clear();
+        const fs::path candidate = mount_root / p;
+        if (fs::exists(candidate, ec)) return candidate;
+        found = find_upward(mount_root, p);
+        if (!found.empty()) return found / p;
+    }
+#endif
+    return p;
+}"""
+        main = replace_once(
+            main, old_bios_return, new_bios_return, "Wii U mounted OpenBIOS path search"
+        )
+
     diag_marker = "Wii U on-screen startup trace (experimental port diagnostics)."
     if diag_marker not in main:
         include_anchor = '#include "host_keymap.h"'
