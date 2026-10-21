@@ -235,6 +235,41 @@ jobs:
             echo "Pinned Cemu build is present; source-level flag verification was performed for upstream revision a53cf0ece."
           fi
           echo "CEMU_BIN=$CEMU_ROOT/AppRun" >> "$GITHUB_ENV"
+
+          # This Cemu build is compiled with ALLOW_PORTABLE=OFF, so it ignores
+          # the portable/ settings.xml path. On Linux it uses
+          # $XDG_CONFIG_HOME/Cemu/settings.xml; if that file is absent Cemu
+          # opens the first-run wizard and blocks the RPX launch.
+          CEMU_CONFIG_HOME="$RUNNER_TEMP/cemu-config"
+          CEMU_DATA_HOME="$RUNNER_TEMP/cemu-data"
+          CEMU_CACHE_HOME="$RUNNER_TEMP/cemu-cache"
+          CEMU_MLC="$RUNNER_TEMP/cemu-mlc"
+          mkdir -p "$CEMU_CONFIG_HOME/Cemu" "$CEMU_DATA_HOME" "$CEMU_CACHE_HOME" "$CEMU_MLC"
+          cat > "$CEMU_CONFIG_HOME/Cemu/settings.xml" <<EOF
+          <?xml version="1.0" encoding="UTF-8"?>
+          <content>
+            <mlc_path>$CEMU_MLC</mlc_path>
+            <GamePaths/>
+          </content>
+          EOF
+          python3 - "$CEMU_CONFIG_HOME/Cemu/settings.xml" "$CEMU_MLC" <<'PY'
+          import sys
+          import xml.etree.ElementTree as ET
+          config_path, mlc_path = sys.argv[1:]
+          root = ET.parse(config_path).getroot()
+          assert root.tag == "content", f"Unexpected Cemu config root: {root.tag}"
+          assert root.findtext("mlc_path") == mlc_path, "Cemu MLC path mismatch"
+          assert root.find("GamePaths") is not None, "Cemu GamePaths section missing"
+          print(f"Seeded Cemu first-run config: {config_path}")
+          print(f"Cemu MLC path: {mlc_path}")
+          PY
+          echo "XDG_CONFIG_HOME=$CEMU_CONFIG_HOME" >> "$GITHUB_ENV"
+          echo "XDG_DATA_HOME=$CEMU_DATA_HOME" >> "$GITHUB_ENV"
+          echo "XDG_CACHE_HOME=$CEMU_CACHE_HOME" >> "$GITHUB_ENV"
+          echo "CEMU_MLC=$CEMU_MLC" >> "$GITHUB_ENV"
+          export XDG_CONFIG_HOME="$CEMU_CONFIG_HOME"
+          export XDG_DATA_HOME="$CEMU_DATA_HOME"
+          export XDG_CACHE_HOME="$CEMU_CACHE_HOME"
           "$CEMU_ROOT/AppRun" --version
           echo "Using prebuilt Cemu revision a53cf0ece (SHA-256 verified)."
 
@@ -654,6 +689,32 @@ jobs:
             echo "::error::Cemu/RPX startup test failed (exit $CEMU_TEST_EXIT). See uploaded diagnostics."
             exit "$CEMU_TEST_EXIT"
           fi
+
+      - name: Verify Cemu controls escaped first-run setup
+        if: always()
+        shell: bash
+        run: |
+          set -euo pipefail
+          OUT="$RUNNER_TEMP/cemu-test-output"
+          for file in \
+            "$OUT/hello-world-after-12s.png" \
+            "$OUT/sdl2-control-after-12s.png" \
+            "$OUT/cemu-after-15s.png"; do
+            if [ ! -s "$file" ]; then
+              echo "::error::Missing Cemu screenshot: $file"
+              exit 1
+            fi
+          done
+          if cmp -s "$OUT/hello-world-after-12s.png" "$OUT/sdl2-control-after-12s.png"; then
+            echo "::error::Hello World and SDL2 control screenshots are pixel-identical; Cemu likely remained in a modal first-run dialog instead of launching the RPXs."
+            exit 1
+          fi
+          if cmp -s "$OUT/hello-world-after-12s.png" "$OUT/cemu-after-15s.png" && \
+             cmp -s "$OUT/sdl2-control-after-12s.png" "$OUT/cemu-after-15s.png"; then
+            echo "::error::All control/game screenshots are identical; the Cemu RPX launch test did not produce distinct output."
+            exit 1
+          fi
+          echo "Cemu controls produced distinct screenshots; continuing with game launch diagnostics."
 
       - name: Upload Cemu screenshots and startup logs
         if: always()
