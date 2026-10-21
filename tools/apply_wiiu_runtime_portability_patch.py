@@ -44,6 +44,28 @@ def main() -> int:
     # compatibility; the real GL backend must never be initialized.
     cmake_path = root / "runtime" / "runtime.cmake"
     cmake = read_text(cmake_path)
+
+    # Direct RPX launches under Aroma/Cemu cannot rely on argv[0] being the
+    # directory that contains the title config. This target always stages
+    # game.toml in the app folder, so never compile an empty fallback path on
+    # the Wii U build even if CMake argument propagation leaves the field blank.
+    config_default_marker = "# Wii U portability: default game.toml for native RPX launches."
+    if config_default_marker not in cmake:
+        old_config_default = """    if(NOT DEFINED PSXRT_DEFAULT_GAME_CONFIG_PATH)
+        set(PSXRT_DEFAULT_GAME_CONFIG_PATH "")
+    endif()"""
+        new_config_default = """    # Wii U portability: default game.toml for native RPX launches.
+    if(APE_WIIU_PORT AND NOT PSXRT_DEFAULT_GAME_CONFIG_PATH)
+        set(PSXRT_DEFAULT_GAME_CONFIG_PATH "game.toml")
+    endif()
+    if(NOT DEFINED PSXRT_DEFAULT_GAME_CONFIG_PATH)
+        set(PSXRT_DEFAULT_GAME_CONFIG_PATH "")
+    endif()"""
+        cmake = replace_once(
+            cmake, old_config_default, new_config_default,
+            "Wii U baked default game config"
+        )
+
     old_marker = "# Wii U portability: exclude host GL/Vulkan renderers on Cafe OS."
     new_marker = "# Wii U portability: retain renderer APIs and add the GL link shim."
     if old_marker in cmake:
