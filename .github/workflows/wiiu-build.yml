@@ -234,8 +234,6 @@ jobs:
           if ! grep -q '("cos-mounts"' "$CEMU_ROOT/shared/bin/cemu" 2>/dev/null; then
             echo "Pinned Cemu build is present; source-level flag verification was performed for upstream revision a53cf0ece."
           fi
-          echo "CEMU_BIN=$CEMU_ROOT/AppRun" >> "$GITHUB_ENV"
-
           # This Cemu build is compiled with ALLOW_PORTABLE=OFF, so it ignores
           # the portable/ settings.xml path. On Linux it uses
           # $XDG_CONFIG_HOME/Cemu/settings.xml; if that file is absent Cemu
@@ -271,12 +269,15 @@ jobs:
           print("Cemu graphics API: OpenGL (0), using Mesa software rendering")
           print(f"Cemu MLC path: {mlc_path}")
           PY
-          echo "XDG_CONFIG_HOME=$CEMU_CONFIG_HOME" >> "$GITHUB_ENV"
-          echo "XDG_DATA_HOME=$CEMU_DATA_HOME" >> "$GITHUB_ENV"
-          echo "XDG_CACHE_HOME=$CEMU_CACHE_HOME" >> "$GITHUB_ENV"
-          echo "LIBGL_ALWAYS_SOFTWARE=1" >> "$GITHUB_ENV"
-          echo "GALLIUM_DRIVER=llvmpipe" >> "$GITHUB_ENV"
-          echo "CEMU_MLC=$CEMU_MLC" >> "$GITHUB_ENV"
+          {
+            echo "CEMU_BIN=$CEMU_ROOT/AppRun"
+            echo "XDG_CONFIG_HOME=$CEMU_CONFIG_HOME"
+            echo "XDG_DATA_HOME=$CEMU_DATA_HOME"
+            echo "XDG_CACHE_HOME=$CEMU_CACHE_HOME"
+            echo "LIBGL_ALWAYS_SOFTWARE=1"
+            echo "GALLIUM_DRIVER=llvmpipe"
+            echo "CEMU_MLC=$CEMU_MLC"
+          } >> "$GITHUB_ENV"
           export XDG_CONFIG_HOME="$CEMU_CONFIG_HOME"
           export XDG_DATA_HOME="$CEMU_DATA_HOME"
           export XDG_CACHE_HOME="$CEMU_CACHE_HOME"
