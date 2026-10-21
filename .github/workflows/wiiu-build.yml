@@ -249,6 +249,10 @@ jobs:
           <?xml version="1.0" encoding="UTF-8"?>
           <content>
             <mlc_path>$CEMU_MLC</mlc_path>
+            <Graphic>
+              <api>0</api>
+              <VSync>0</VSync>
+            </Graphic>
             <GamePaths/>
           </content>
           EOF
@@ -260,12 +264,18 @@ jobs:
           assert root.tag == "content", f"Unexpected Cemu config root: {root.tag}"
           assert root.findtext("mlc_path") == mlc_path, "Cemu MLC path mismatch"
           assert root.find("GamePaths") is not None, "Cemu GamePaths section missing"
-          print(f"Seeded Cemu first-run config: {config_path}")
+          graphic = root.find("Graphic")
+          assert graphic is not None, "Cemu Graphics section missing"
+          assert graphic.findtext("api") == "0", "Cemu must use OpenGL (0) for software-rendered CI"
+          print(f"Seeded Cemu config: {config_path}")
+          print("Cemu graphics API: OpenGL (0), using Mesa software rendering")
           print(f"Cemu MLC path: {mlc_path}")
           PY
           echo "XDG_CONFIG_HOME=$CEMU_CONFIG_HOME" >> "$GITHUB_ENV"
           echo "XDG_DATA_HOME=$CEMU_DATA_HOME" >> "$GITHUB_ENV"
           echo "XDG_CACHE_HOME=$CEMU_CACHE_HOME" >> "$GITHUB_ENV"
+          echo "LIBGL_ALWAYS_SOFTWARE=1" >> "$GITHUB_ENV"
+          echo "GALLIUM_DRIVER=llvmpipe" >> "$GITHUB_ENV"
           echo "CEMU_MLC=$CEMU_MLC" >> "$GITHUB_ENV"
           export XDG_CONFIG_HOME="$CEMU_CONFIG_HOME"
           export XDG_DATA_HOME="$CEMU_DATA_HOME"
@@ -706,7 +716,13 @@ jobs:
             fi
           done
           if cmp -s "$OUT/hello-world-after-12s.png" "$OUT/sdl2-control-after-12s.png"; then
-            echo "::error::Hello World and SDL2 control screenshots are pixel-identical; Cemu likely remained in a modal first-run dialog instead of launching the RPXs."
+            echo "::error::Hello World and SDL2 control screenshots are pixel-identical; Cemu may be blocked by a renderer error or modal dialog."
+            exit 1
+          fi
+          SDL_COLORS="$(identify -format '%k' "$OUT/sdl2-control-after-12s.png")"
+          echo "SDL2 control screenshot unique-color count: $SDL_COLORS"
+          if [ "$SDL_COLORS" -lt 5000 ]; then
+            echo "::error::SDL2 control screenshot has only $SDL_COLORS colors; the expected software-rendered gradient was not visible. Check the screenshot and Cemu renderer selection."
             exit 1
           fi
           if cmp -s "$OUT/hello-world-after-12s.png" "$OUT/cemu-after-15s.png" && \
