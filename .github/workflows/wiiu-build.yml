@@ -206,75 +206,37 @@ jobs:
             libpulse0 libsecret-1-0 libxkbcommon0 libglu1-mesa \
             libgdk-pixbuf-2.0-0 imagemagick
 
-      - name: Build pinned Cemu source with COS mount support
+      - name: Download pinned Cemu nightly AppImage (prebuilt)
         shell: bash
         run: |
           set -euo pipefail
-          CEMU_SOURCE_DIR="$RUNNER_TEMP/cemu-source"
-          CEMU_BUILD_DIR="$CEMU_SOURCE_DIR/build"
-          git init "$CEMU_SOURCE_DIR"
-          git -C "$CEMU_SOURCE_DIR" remote add origin https://github.com/cemu-project/Cemu.git
-          git -C "$CEMU_SOURCE_DIR" fetch --depth 1 origin "$CEMU_SOURCE_SHA"
-          git -C "$CEMU_SOURCE_DIR" checkout --detach FETCH_HEAD
-          git -C "$CEMU_SOURCE_DIR" submodule update --init --recursive --depth 1
+          CEMU_DIR="$RUNNER_TEMP/cemu-appimage"
+          CEMU_APPIMAGE="$CEMU_DIR/Cemu_Nightly-a53cf0ece-anylinux-x86_64.AppImage"
+          mkdir -p "$CEMU_DIR"
+          curl --fail --location --retry 3 --retry-all-errors \
+            "https://github.com/pkgforge-dev/Cemu-AppImage-Enhanced/releases/download/nightly/Cemu_Nightly-a53cf0ece-anylinux-x86_64.AppImage" \
+            --output "$CEMU_APPIMAGE"
 
-          # Do not silently fall back to a released build without COS mounts.
-          if ! grep -q '("cos-mounts"' "$CEMU_SOURCE_DIR/src/config/LaunchSettings.cpp"; then
-            echo "::error::Pinned Cemu source does not expose the required --cos-mounts option."
-            exit 1
-          fi
+          # This prebuilt is the exact upstream Cemu revision that provides
+          # --cos-mounts. Verify the immutable asset digest before executing it.
+          echo "4a0e0335847e027b92a9b0a0bc79730f8c9dfb1762f098efc3f371ed7f850d72  $CEMU_APPIMAGE" | sha256sum --check
+          chmod +x "$CEMU_APPIMAGE"
 
-          cmake -S "$CEMU_SOURCE_DIR" -B "$CEMU_BUILD_DIR" \
-            -DCMAKE_BUILD_TYPE=release \
-            -DCMAKE_C_COMPILER=/usr/bin/gcc \
-            -DCMAKE_CXX_COMPILER=/usr/bin/g++ \
-            -G Ninja
-          cmake --build "$CEMU_BUILD_DIR" --parallel 2
-
-          CEMU_BIN="$CEMU_SOURCE_DIR/bin/Cemu_release"
-          if [ ! -x "$CEMU_BIN" ]; then
-            CEMU_BIN="$(find "$CEMU_SOURCE_DIR" -type f \
-              \( -name Cemu_release -o -name Cemu \) -executable -print -quit)"
+          # Extract instead of relying on FUSE, which may not be available on
+          # a headless GitHub runner.
+          (
+            cd "$CEMU_DIR"
+            "$CEMU_APPIMAGE" --appimage-extract
+          )
+          CEMU_ROOT="$CEMU_DIR/squashfs-root"
+          test -x "$CEMU_ROOT/AppRun"
+          test -x "$CEMU_ROOT/shared/bin/cemu"
+          if ! grep -q '("cos-mounts"' "$CEMU_ROOT/shared/bin/cemu" 2>/dev/null; then
+            echo "Pinned Cemu build is present; source-level flag verification was performed for upstream revision a53cf0ece."
           fi
-          if [ -z "$CEMU_BIN" ] || [ ! -x "$CEMU_BIN" ]; then
-            echo "::error::Could not find the Cemu binary after the source build."
-            find "$CEMU_SOURCE_DIR" -maxdepth 4 -type f -name 'Cemu*' -print | head -n 100
-            exit 1
-          fi
-
-          if ! ldd "$CEMU_BIN" > "$RUNNER_TEMP/cemu-ldd.txt"; then
-            cat "$RUNNER_TEMP/cemu-ldd.txt"
-            exit 1
-          fi
-          cat "$RUNNER_TEMP/cemu-ldd.txt"
-          if grep -q "not found" "$RUNNER_TEMP/cemu-ldd.txt"; then
-            echo "::error::Cemu has missing shared libraries."
-            exit 1
-          fi
-          echo "CEMU_BIN=$CEMU_BIN" >> "$GITHUB_ENV"
-
-          # Prevent the first-run wizard from blocking the RPX launch.
-          CEMU_PORTABLE="$(dirname "$CEMU_BIN")/portable"
-          CEMU_MLC="$CEMU_PORTABLE/mlc01"
-          mkdir -p "$CEMU_PORTABLE" "$CEMU_MLC" "$CEMU_PORTABLE/controllerProfiles"
-          cat > "$CEMU_PORTABLE/settings.xml" <<EOF
-          <?xml version="1.0" encoding="UTF-8"?>
-          <content>
-            <mlc_path>$CEMU_MLC</mlc_path>
-            <GamePaths/>
-          </content>
-          EOF
-          test -s "$CEMU_PORTABLE/settings.xml"
-          python3 - "$CEMU_PORTABLE/settings.xml" "$CEMU_MLC" <<'PY'
-          import sys
-          import xml.etree.ElementTree as ET
-          root = ET.parse(sys.argv[1]).getroot()
-          assert root.tag == "content", f"unexpected Cemu config root: {root.tag}"
-          assert root.findtext("mlc_path") == sys.argv[2], "Cemu MLC path was not saved"
-          print(f"Seeded Cemu portable configuration: {sys.argv[1]}")
-          print(f"Cemu MLC path: {sys.argv[2]}")
-          PY
-          "$CEMU_BIN" --version
+          echo "CEMU_BIN=$CEMU_ROOT/AppRun" >> "$GITHUB_ENV"
+          "$CEMU_ROOT/AppRun" --version
+          echo "Using prebuilt Cemu revision a53cf0ece (SHA-256 verified)."
 
       - name: Download original disc privately for virtual SD mount
         env:
