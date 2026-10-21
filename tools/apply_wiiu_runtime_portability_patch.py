@@ -447,7 +447,7 @@ int main(int argc, char** argv) {"""
         main = replace_once(main, overlay_anchor, overlay_patch, "Wii U config diagnostic")
 
         disc_error_anchor = '''        if (game_config_path && resolved_disc.empty()) {
-            std::fprintf(stderr, "psxrecomp: no disc image selected; exiting.\\\\n");
+            std::fprintf(stderr, "psxrecomp: no disc image selected; exiting.\\n");
             return 1;
         }'''
         disc_error_patch = '''        if (game_config_path && resolved_disc.empty()) {
@@ -455,7 +455,7 @@ int main(int argc, char** argv) {"""
             ape_wiiu_diag("ERROR: no disc selected");
             ape_wiiu_diagf("CONFIG: %s", game_config_path);
 #endif
-            std::fprintf(stderr, "psxrecomp: no disc image selected; exiting.\\\\n");
+            std::fprintf(stderr, "psxrecomp: no disc image selected; exiting.\\n");
             return 1;
         }'''
         main = replace_once(main, disc_error_anchor, disc_error_patch, "Wii U missing-disc diagnostic")
@@ -475,14 +475,14 @@ int main(int argc, char** argv) {"""
         main = replace_once(main, after_disc_anchor, after_disc_patch, "Wii U resolved-disc diagnostic")
 
         bios_error_anchor = '''    if (resolved_bios.empty()) {
-        std::fprintf(stderr, "psxrecomp: no BIOS selected; exiting.\\\\n");
+        std::fprintf(stderr, "psxrecomp: no BIOS selected; exiting.\\n");
         return 1;
     }'''
         bios_error_patch = '''    if (resolved_bios.empty()) {
 #if defined(PSX_APE_WIIU_PORT)
         ape_wiiu_diag("ERROR: no BIOS selected");
 #endif
-        std::fprintf(stderr, "psxrecomp: no BIOS selected; exiting.\\\\n");
+        std::fprintf(stderr, "psxrecomp: no BIOS selected; exiting.\\n");
         return 1;
     }
 #if defined(PSX_APE_WIIU_PORT)
@@ -511,7 +511,7 @@ int main(int argc, char** argv) {"""
         )
 
         sdl_init_anchor = '''        if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
-            std::fprintf(stderr, "SDL_Init failed: %s\\\\n", SDL_GetError());
+            std::fprintf(stderr, "SDL_Init failed: %s\\n", SDL_GetError());
             return 1;
         }
     }
@@ -521,7 +521,7 @@ int main(int argc, char** argv) {"""
             ape_wiiu_diag("ERROR: SDL_Init failed");
             ape_wiiu_diagf("SDL: %s", SDL_GetError());
 #endif
-            std::fprintf(stderr, "SDL_Init failed: %s\\\\n", SDL_GetError());
+            std::fprintf(stderr, "SDL_Init failed: %s\\n", SDL_GetError());
             return 1;
         }
 #if defined(PSX_APE_WIIU_PORT)
@@ -532,7 +532,7 @@ int main(int argc, char** argv) {"""
         main = replace_once(main, sdl_init_anchor, sdl_init_patch, "Wii U SDL-init diagnostic")
 
         win_error_anchor = '''    if (!sdl_window) {
-        std::fprintf(stderr, "SDL_CreateWindow failed: %s\\\\n", SDL_GetError());
+        std::fprintf(stderr, "SDL_CreateWindow failed: %s\\n", SDL_GetError());
         return 1;
     }
     psx_apply_window_icon(sdl_window, argv[0]);'''
@@ -541,7 +541,7 @@ int main(int argc, char** argv) {"""
         ape_wiiu_diag("ERROR: SDL_CreateWindow failed");
         ape_wiiu_diagf("SDL: %s", SDL_GetError());
 #endif
-        std::fprintf(stderr, "SDL_CreateWindow failed: %s\\\\n", SDL_GetError());
+        std::fprintf(stderr, "SDL_CreateWindow failed: %s\\n", SDL_GetError());
         return 1;
     }
 #if defined(PSX_APE_WIIU_PORT)
@@ -551,7 +551,7 @@ int main(int argc, char** argv) {"""
         main = replace_once(main, win_error_anchor, win_error_patch, "Wii U SDL-window diagnostic")
 
         renderer_anchor = '''    if (!sdl_renderer) {
-        std::fprintf(stderr, "SDL_CreateRenderer failed: %s\\\\n", SDL_GetError());
+        std::fprintf(stderr, "SDL_CreateRenderer failed: %s\\n", SDL_GetError());
         return 1;
     }
 
@@ -561,7 +561,7 @@ int main(int argc, char** argv) {"""
         ape_wiiu_diag("ERROR: SDL_CreateRenderer failed");
         ape_wiiu_diagf("SDL: %s", SDL_GetError());
 #endif
-        std::fprintf(stderr, "SDL_CreateRenderer failed: %s\\\\n", SDL_GetError());
+        std::fprintf(stderr, "SDL_CreateRenderer failed: %s\\n", SDL_GetError());
         return 1;
     }
 #if defined(PSX_APE_WIIU_PORT)
