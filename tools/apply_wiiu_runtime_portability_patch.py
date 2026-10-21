@@ -406,13 +406,13 @@ const char *autocompile_degraded_reason(void) {
 #include <whb/proc.h>
 #include <whb/log.h>
 #include <whb/log_console.h>
+static unsigned int s_ape_wiiu_diag_vblank_count;
 #endif'''
         main = replace_once(main, include_anchor, include_patch, "Wii U diagnostic includes")
 
         main_anchor = "int main(int argc, char** argv) {"
         main_patch = r"""/* Wii U on-screen startup trace (experimental port diagnostics). */
 #if defined(PSX_APE_WIIU_PORT)
-static unsigned int s_ape_wiiu_diag_vblank_count;
 static void ape_wiiu_diag(const char* message)
 {
     WHBLogPrint(message);
