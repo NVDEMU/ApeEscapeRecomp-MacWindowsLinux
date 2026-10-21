@@ -175,12 +175,14 @@ jobs:
     name: Cemu RPX smoke test
     needs: build-wiiu
     runs-on: ubuntu-24.04
-    timeout-minutes: 5
+    timeout-minutes: 60
     permissions:
       contents: read
     env:
-      CEMU_RELEASE_URL: https://github.com/cemu-project/Cemu/releases/download/v2.6/cemu-2.6-ubuntu-22.04-x64.zip
-      CEMU_RELEASE_SHA256: 5e4592d0dae394fa0614cb8c875eff3f81b23170b349511de318d9caf7215e1b
+      # Pin the upstream Cemu source commit that implements --cos-mounts.
+      # Official v2.6 does not recognize that launch option, which caused the
+      # emulated SD paths to remain absent in earlier smoke tests.
+      CEMU_SOURCE_SHA: a53cf0ece75964aa361056edab46f281dcc0bc44
     steps:
       - name: Check out disc downloader
         uses: actions/checkout@v4
@@ -193,49 +195,65 @@ jobs:
           name: ApeEscapeRecomp-WiiU-${{ github.sha }}
           path: wiiu-artifact
 
-      - name: Install Cemu display and software Vulkan dependencies
+      - name: Install Cemu build and display dependencies
         run: |
           set -euo pipefail
           sudo apt-get update
-          sudo apt-get install -y xvfb xauth unzip curl mame-tools libbluetooth3 \
-            libvulkan1 mesa-vulkan-drivers libgtk-3-0t64 libpulse0 \
-            libsecret-1-0 libxkbcommon0 libglu1-mesa libgdk-pixbuf-2.0-0 imagemagick
+          sudo apt-get install -y build-essential cmake clang-15 freeglut3-dev \
+            git libbluetooth-dev libgcrypt20-dev libglm-dev libgtk-3-dev \
+            libpulse-dev libsecret-1-dev libsystemd-dev libtool nasm ninja-build \
+            libusb-1.0-0-dev xvfb xauth mame-tools libvulkan1 mesa-vulkan-drivers \
+            libpulse0 libsecret-1-0 libxkbcommon0 libglu1-mesa \
+            libgdk-pixbuf-2.0-0 imagemagick
 
-      - name: Download and verify Cemu
+      - name: Build pinned Cemu source with COS mount support
+        shell: bash
         run: |
           set -euo pipefail
-          mkdir -p "$RUNNER_TEMP/cemu"
-          curl --fail --location --silent --show-error "$CEMU_RELEASE_URL" \
-            -o "$RUNNER_TEMP/cemu.zip"
-          echo "$CEMU_RELEASE_SHA256  $RUNNER_TEMP/cemu.zip" | sha256sum --check
-          unzip -q "$RUNNER_TEMP/cemu.zip" -d "$RUNNER_TEMP/cemu"
-          # ZIP extraction does not reliably preserve executable bits for all
-          # Cemu release archives. Locate the verified binary by name first,
-          # then set its executable bit explicitly before the smoke test.
-          CEMU_BIN="$(find "$RUNNER_TEMP/cemu" -type f \
-            \( -name Cemu -o -name cemu \) -print -quit)"
-          if [ -z "$CEMU_BIN" ]; then
-            echo "::error::Could not find the Cemu binary in the verified release archive."
-            find "$RUNNER_TEMP/cemu" -maxdepth 3 -type f | sort | head -n 100
+          CEMU_SOURCE_DIR="$RUNNER_TEMP/cemu-source"
+          CEMU_BUILD_DIR="$CEMU_SOURCE_DIR/build"
+          git init "$CEMU_SOURCE_DIR"
+          git -C "$CEMU_SOURCE_DIR" remote add origin https://github.com/cemu-project/Cemu.git
+          git -C "$CEMU_SOURCE_DIR" fetch --depth 1 origin "$CEMU_SOURCE_SHA"
+          git -C "$CEMU_SOURCE_DIR" checkout --detach FETCH_HEAD
+          git -C "$CEMU_SOURCE_DIR" submodule update --init --recursive --depth 1
+
+          # Do not silently fall back to a released build without COS mounts.
+          if ! grep -q '("cos-mounts"' "$CEMU_SOURCE_DIR/src/config/LaunchSettings.cpp"; then
+            echo "::error::Pinned Cemu source does not expose the required --cos-mounts option."
             exit 1
           fi
-          chmod u+x "$CEMU_BIN"
-          test -x "$CEMU_BIN"
-          # Fail here with the exact missing shared libraries instead of letting
-          # the later RPX smoke test misreport an environment failure as an RPX crash.
+
+          cmake -S "$CEMU_SOURCE_DIR" -B "$CEMU_BUILD_DIR" \
+            -DCMAKE_BUILD_TYPE=release \
+            -DCMAKE_C_COMPILER=/usr/bin/clang-15 \
+            -DCMAKE_CXX_COMPILER=/usr/bin/clang++-15 \
+            -G Ninja
+          cmake --build "$CEMU_BUILD_DIR" --parallel 2
+
+          CEMU_BIN="$CEMU_SOURCE_DIR/bin/Cemu_release"
+          if [ ! -x "$CEMU_BIN" ]; then
+            CEMU_BIN="$(find "$CEMU_SOURCE_DIR" -type f \
+              \( -name Cemu_release -o -name Cemu \) -executable -print -quit)"
+          fi
+          if [ -z "$CEMU_BIN" ] || [ ! -x "$CEMU_BIN" ]; then
+            echo "::error::Could not find the Cemu binary after the source build."
+            find "$CEMU_SOURCE_DIR" -maxdepth 4 -type f -name 'Cemu*' -print | head -n 100
+            exit 1
+          fi
+
           if ! ldd "$CEMU_BIN" > "$RUNNER_TEMP/cemu-ldd.txt"; then
             cat "$RUNNER_TEMP/cemu-ldd.txt"
             exit 1
           fi
           cat "$RUNNER_TEMP/cemu-ldd.txt"
           if grep -q "not found" "$RUNNER_TEMP/cemu-ldd.txt"; then
-            echo "::error::Cemu has missing shared libraries; install the corresponding Ubuntu runtime packages."
+            echo "::error::Cemu has missing shared libraries."
             exit 1
           fi
           echo "CEMU_BIN=$CEMU_BIN" >> "$GITHUB_ENV"
-          # Cemu opens a modal first-run wizard whenever portable/settings.xml is
-          # missing. That dialog blocks the command-line -g RPX launch in CI.
-          # Pre-seed a minimal valid config so Cemu skips the wizard entirely.
+
+          # Prevent the first-run wizard from blocking the RPX launch.
           CEMU_PORTABLE="$(dirname "$CEMU_BIN")/portable"
           CEMU_MLC="$CEMU_PORTABLE/mlc01"
           mkdir -p "$CEMU_PORTABLE" "$CEMU_MLC" "$CEMU_PORTABLE/controllerProfiles"
