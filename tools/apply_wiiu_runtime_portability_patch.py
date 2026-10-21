@@ -395,9 +395,209 @@ const char *autocompile_degraded_reason(void) {
         main = replace_once(
             main, old_sdl_present, new_sdl_present, "SDL2 Wii U software presenter"
         )
-        write_text(main_path, main)
+        # On-screen boot trace for Cemu/real-console diagnosis. Cemu does not forward
+    # Cafe OS stdout/stderr from RPX code, so a grey viewport otherwise hides the
+    # stage at which the app stopped. This is scoped to APE_WIIU_PORT only.
+    diag_marker = "Wii U on-screen startup trace (experimental port diagnostics)."
+    if diag_marker not in main:
+        include_anchor = '#include "host_keymap.h"'
+        include_patch = '''#include "host_keymap.h"
+#if defined(PSX_APE_WIIU_PORT)
+#include <whb/proc.h>
+#include <whb/log.h>
+#include <whb/log_console.h>
+#endif'''
+        main = replace_once(main, include_anchor, include_patch, "Wii U diagnostic includes")
 
-    # Mods that materialize a derived disc currently launch an external xdelta
+        main_anchor = "int main(int argc, char** argv) {"
+        main_patch = r"""/* Wii U on-screen startup trace (experimental port diagnostics). */
+#if defined(PSX_APE_WIIU_PORT)
+static unsigned int s_ape_wiiu_diag_vblank_count;
+static void ape_wiiu_diag(const char* message)
+{
+    WHBLogPrint(message);
+    WHBLogConsoleDraw();
+}
+static void ape_wiiu_diagf(const char* format, const char* value)
+{
+    WHBLogPrintf(format, value ? value : "(null)");
+    WHBLogConsoleDraw();
+}
+#endif
+
+int main(int argc, char** argv) {"""
+        main = replace_once(main, main_anchor, main_patch, "Wii U diagnostic helper")
+
+        entry_anchor = '''    std::fprintf(stderr, "psxrecomp: main() entered\\n");
+    std::fflush(stderr);'''
+        entry_patch = '''    std::fprintf(stderr, "psxrecomp: main() entered\\n");
+    std::fflush(stderr);
+#if defined(PSX_APE_WIIU_PORT)
+    WHBProcInit();
+    WHBLogConsoleInit();
+    ape_wiiu_diag("STAGE 1: runtime main entered");
+#endif'''
+        main = replace_once(main, entry_anchor, entry_patch, "Wii U diagnostic main entry")
+
+        overlay_anchor = "    if (overlay_init_thread.joinable()) {"
+        overlay_patch = '''#if defined(PSX_APE_WIIU_PORT)
+    ape_wiiu_diagf("CONFIG: %s", game_config_path);
+#endif
+    if (overlay_init_thread.joinable()) {'''
+        main = replace_once(main, overlay_anchor, overlay_patch, "Wii U config diagnostic")
+
+        disc_error_anchor = '''        if (game_config_path && resolved_disc.empty()) {
+            std::fprintf(stderr, "psxrecomp: no disc image selected; exiting.\\\\n");
+            return 1;
+        }'''
+        disc_error_patch = '''        if (game_config_path && resolved_disc.empty()) {
+#if defined(PSX_APE_WIIU_PORT)
+            ape_wiiu_diag("ERROR: no disc selected");
+            ape_wiiu_diagf("CONFIG: %s", game_config_path);
+#endif
+            std::fprintf(stderr, "psxrecomp: no disc image selected; exiting.\\\\n");
+            return 1;
+        }'''
+        main = replace_once(main, disc_error_anchor, disc_error_patch, "Wii U missing-disc diagnostic")
+
+        after_disc_anchor = '''    }
+
+    {
+        /* Netplay is vanilla unless the title opted into content negotiation'''
+        after_disc_patch = '''    }
+#if defined(PSX_APE_WIIU_PORT)
+    ape_wiiu_diag(resolved_disc.empty() ? "STAGE: disc path is empty" : "STAGE 2: disc resolved");
+    ape_wiiu_diagf("DISC: %s", resolved_disc.empty() ? "(none)" : resolved_disc.string().c_str());
+#endif
+
+    {
+        /* Netplay is vanilla unless the title opted into content negotiation'''
+        main = replace_once(main, after_disc_anchor, after_disc_patch, "Wii U resolved-disc diagnostic")
+
+        bios_error_anchor = '''    if (resolved_bios.empty()) {
+        std::fprintf(stderr, "psxrecomp: no BIOS selected; exiting.\\\\n");
+        return 1;
+    }'''
+        bios_error_patch = '''    if (resolved_bios.empty()) {
+#if defined(PSX_APE_WIIU_PORT)
+        ape_wiiu_diag("ERROR: no BIOS selected");
+#endif
+        std::fprintf(stderr, "psxrecomp: no BIOS selected; exiting.\\\\n");
+        return 1;
+    }
+#if defined(PSX_APE_WIIU_PORT)
+    ape_wiiu_diag("STAGE 3: BIOS resolved");
+    ape_wiiu_diagf("BIOS: %s", resolved_bios.string().c_str());
+#endif'''
+        main = replace_once(main, bios_error_anchor, bios_error_patch, "Wii U BIOS diagnostic")
+
+        main = replace_once(
+            main,
+            "    memory_init(bios_path_str.c_str());",
+            '''    memory_init(bios_path_str.c_str());
+#if defined(PSX_APE_WIIU_PORT)
+    ape_wiiu_diag("STAGE 4: PS1 memory initialized");
+#endif''',
+            "Wii U memory-init diagnostic"
+        )
+        main = replace_once(
+            main,
+            "    gpu_init();",
+            '''    gpu_init();
+#if defined(PSX_APE_WIIU_PORT)
+    ape_wiiu_diag("STAGE 5: PS1 GPU initialized");
+#endif''',
+            "Wii U GPU-init diagnostic"
+        )
+
+        sdl_init_anchor = '''        if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
+            std::fprintf(stderr, "SDL_Init failed: %s\\\\n", SDL_GetError());
+            return 1;
+        }
+    }
+    load_input_config(argv[0]);'''
+        sdl_init_patch = '''        if (SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMECONTROLLER) != 0) {
+#if defined(PSX_APE_WIIU_PORT)
+            ape_wiiu_diag("ERROR: SDL_Init failed");
+            ape_wiiu_diagf("SDL: %s", SDL_GetError());
+#endif
+            std::fprintf(stderr, "SDL_Init failed: %s\\\\n", SDL_GetError());
+            return 1;
+        }
+#if defined(PSX_APE_WIIU_PORT)
+        ape_wiiu_diag("STAGE 6: SDL initialized");
+#endif
+    }
+    load_input_config(argv[0]);'''
+        main = replace_once(main, sdl_init_anchor, sdl_init_patch, "Wii U SDL-init diagnostic")
+
+        win_error_anchor = '''    if (!sdl_window) {
+        std::fprintf(stderr, "SDL_CreateWindow failed: %s\\\\n", SDL_GetError());
+        return 1;
+    }
+    psx_apply_window_icon(sdl_window, argv[0]);'''
+        win_error_patch = '''    if (!sdl_window) {
+#if defined(PSX_APE_WIIU_PORT)
+        ape_wiiu_diag("ERROR: SDL_CreateWindow failed");
+        ape_wiiu_diagf("SDL: %s", SDL_GetError());
+#endif
+        std::fprintf(stderr, "SDL_CreateWindow failed: %s\\\\n", SDL_GetError());
+        return 1;
+    }
+#if defined(PSX_APE_WIIU_PORT)
+    ape_wiiu_diag("STAGE 7: SDL window created");
+#endif
+    psx_apply_window_icon(sdl_window, argv[0]);'''
+        main = replace_once(main, win_error_anchor, win_error_patch, "Wii U SDL-window diagnostic")
+
+        renderer_anchor = '''    if (!sdl_renderer) {
+        std::fprintf(stderr, "SDL_CreateRenderer failed: %s\\\\n", SDL_GetError());
+        return 1;
+    }
+
+    /* Present in a logical space of the configured aspect'''
+        renderer_patch = '''    if (!sdl_renderer) {
+#if defined(PSX_APE_WIIU_PORT)
+        ape_wiiu_diag("ERROR: SDL_CreateRenderer failed");
+        ape_wiiu_diagf("SDL: %s", SDL_GetError());
+#endif
+        std::fprintf(stderr, "SDL_CreateRenderer failed: %s\\\\n", SDL_GetError());
+        return 1;
+    }
+#if defined(PSX_APE_WIIU_PORT)
+    ape_wiiu_diag("STAGE 8: SDL renderer created");
+#endif
+
+    /* Present in a logical space of the configured aspect'''
+        main = replace_once(main, renderer_anchor, renderer_patch, "Wii U SDL-renderer diagnostic")
+
+        present_anchor = "    gpu_set_vblank_callback(sdl_vblank_present);"
+        present_patch = '''    gpu_set_vblank_callback(sdl_vblank_present);
+#if defined(PSX_APE_WIIU_PORT)
+    ape_wiiu_diag("STAGE 9: vblank present callback registered");
+#endif'''
+        main = replace_once(main, present_anchor, present_patch, "Wii U present callback diagnostic")
+
+        scheduler_anchor = "    psx_scheduler_run(&cpu);"
+        scheduler_patch = '''#if defined(PSX_APE_WIIU_PORT)
+    ape_wiiu_diag("STAGE 10: entering PS1 guest scheduler");
+#endif
+    psx_scheduler_run(&cpu);'''
+        main = replace_once(main, scheduler_anchor, scheduler_patch, "Wii U guest-entry diagnostic")
+
+        vblank_anchor = "    NetplayVblankEpilogue ep = sdl_vblank_present_body();"
+        vblank_patch = '''    NetplayVblankEpilogue ep = sdl_vblank_present_body();
+#if defined(PSX_APE_WIIU_PORT)
+    if ((++s_ape_wiiu_diag_vblank_count % 30u) == 0u) {
+        WHBLogPrintf("GUEST running: vblanks=%u", s_ape_wiiu_diag_vblank_count);
+        WHBLogConsoleDraw();
+    }
+#endif'''
+        main = replace_once(main, vblank_anchor, vblank_patch, "Wii U guest-progress diagnostic")
+
+    write_text(main_path, main)
+
+    # Mods that materialize a derived disc'' currently launch an external xdelta
     # process (fork/exec/waitpid). Disable only that optional operation on Wii U.
     mod_path = root / "runtime" / "src" / "mod_runtime.cpp"
     mod_runtime = read_text(mod_path)
