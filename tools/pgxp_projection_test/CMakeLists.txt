@@ -7,6 +7,7 @@ add_executable(ape_pgxp_projection_test
     "${PSXRECOMP_RUNTIME_ROOT}/tests/test_pgxp.cpp"
     "${PSXRECOMP_RUNTIME_ROOT}/src/pgxp.cpp"
     "${PSXRECOMP_RUNTIME_ROOT}/src/psx_ram_geometry.c"
+    "${CMAKE_CURRENT_LIST_DIR}/mod_memory_stubs.c"
 )
 target_include_directories(ape_pgxp_projection_test PRIVATE
     "${PSXRECOMP_RUNTIME_ROOT}/include"
