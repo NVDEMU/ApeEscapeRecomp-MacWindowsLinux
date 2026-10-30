@@ -37,10 +37,11 @@ if not re.search(r"(?m)^pgxp_depth_buffer\s*=\s*true\s*$", config):
 if not re.search(r'(?m)^pgxp_seam\s*=\s*"wide"\s*$', config):
     raise SystemExit("Ape Escape must enable wide PGXP seam expansion above native resolution.")
 
-expected_framework_pin = "4102438ab4c5aadf010878029d0324ef6382e521"
 pins = (ROOT / "framework_pins.txt").read_text(encoding="utf-8").splitlines()
-if f"psxrecomp-v4={expected_framework_pin}" not in pins:
-    raise SystemExit("framework_pins.txt must name the PGXP depth/seam framework pin.")
+framework_pins = [line.split("=", 1)[1] for line in pins if line.startswith("psxrecomp-v4=")]
+if len(framework_pins) != 1 or not re.fullmatch(r"[0-9a-f]{40}", framework_pins[0]):
+    raise SystemExit("framework_pins.txt must declare exactly one valid PSXRecomp framework pin.")
+expected_framework_pin = framework_pins[0]
 framework = ROOT / "psxrecomp-v4"
 if (framework / ".git").exists():
     checked_out_pin = subprocess.run(
@@ -49,7 +50,7 @@ if (framework / ".git").exists():
     ).stdout.strip()
     if checked_out_pin != expected_framework_pin:
         raise SystemExit(
-            f"Framework checkout ({checked_out_pin}) disagrees with expected PGXP renderer pin ({expected_framework_pin})."
+            f"Framework checkout ({checked_out_pin}) disagrees with framework_pins.txt ({expected_framework_pin})."
         )
 
 manifest = (ROOT / "mods/preloaded/packages/psx.enhancement.pgxp/1.0.0/manifest.toml").read_text(encoding="utf-8")
