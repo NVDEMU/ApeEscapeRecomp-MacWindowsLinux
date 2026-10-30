@@ -1310,6 +1310,8 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
         launcher_text = launcher_text.replace(mod_tools_anchor, mod_tools_insert, 1)
 
     # Bulk toggles are destructive to a player's current mod selection; confirm.
+    # Upstream removed Enable All by default. Ape Escape retains it only behind
+    # a confirmation and an atomic rollback if the resolver rejects any feature.
     bulk_marker = "APE_ESCAPE_CONFIRM_BULK_MOD_ACTIONS"
     old_bulk = """    if (ImGui::Button(ui_text("Enable all")))
         set_all_mod_features(m, true);
@@ -1331,9 +1333,9 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
     if (ImGui::IsItemHovered())
         ImGui::SetTooltip("%s", ui_text("Disable every installed mod feature"));
     if (ImGui::BeginPopupModal("Confirm Enable All Mod Features", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::TextWrapped("%s", ui_text("Enable every listed installed mod feature? Hidden/internal features are left unchanged. Review the list before pressing PLAY."));
+        ImGui::TextWrapped("%s", ui_text("Enable every visible feature? Experimental and conflicting options may also turn on. The action is rolled back if the resolver rejects one."));
         if (ImGui::Button(ui_text("Enable All"), ImVec2(px(130), px(32)))) {
-            set_all_mod_features(m, true);
+            (void)ape_escape_enable_all_mod_features(m);
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
@@ -1342,9 +1344,49 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
         ImGui::EndPopup();
     }
     if (ImGui::BeginPopupModal("Confirm Disable All Mod Features", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::TextWrapped("%s", ui_text("Disable every listed installed mod feature? Hidden/internal features are left unchanged; review the list before pressing PLAY."));
+        ImGui::TextWrapped("%s", ui_text("Disable every visible feature? Hidden/internal features are left unchanged."));
         if (ImGui::Button(ui_text("Disable All"), ImVec2(px(130), px(32)))) {
-            set_all_mod_features(m, false);
+            (void)disable_all_mod_features(m);
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(ui_text("Cancel"), ImVec2(px(100), px(32))))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }"""
+    upstream_bulk = """    /* No "Enable all": in a title with many mods it turns on features that
+     * need owner files or conflict with each other, all at once. */
+    ImGui::SameLine();
+    if (ImGui::Button(ui_text("Disable all")))
+        disable_all_mod_features(m);
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", ui_text("Disable every installed mod feature"));"""
+    upstream_new_bulk = """    /* APE_ESCAPE_CONFIRM_BULK_MOD_ACTIONS */
+    ImGui::SameLine();
+    if (ImGui::Button(ui_text("Enable all")))
+        ImGui::OpenPopup("Confirm Enable All Mod Features");
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", ui_text("Enable every visible feature"));
+    ImGui::SameLine();
+    if (ImGui::Button(ui_text("Disable all")))
+        ImGui::OpenPopup("Confirm Disable All Mod Features");
+    if (ImGui::IsItemHovered())
+        ImGui::SetTooltip("%s", ui_text("Disable every visible feature"));
+    if (ImGui::BeginPopupModal("Confirm Enable All Mod Features", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped("%s", ui_text("Enable every visible feature? Experimental and conflicting options may also turn on. If the resolver rejects any feature, the entire action is rolled back. Hidden/internal features are left unchanged."));
+        if (ImGui::Button(ui_text("Enable All"), ImVec2(px(130), px(32)))) {
+            (void)ape_escape_enable_all_mod_features(m);
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button(ui_text("Cancel"), ImVec2(px(100), px(32))))
+            ImGui::CloseCurrentPopup();
+        ImGui::EndPopup();
+    }
+    if (ImGui::BeginPopupModal("Confirm Disable All Mod Features", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+        ImGui::TextWrapped("%s", ui_text("Disable every visible feature? Hidden/internal features are left unchanged."));
+        if (ImGui::Button(ui_text("Disable All"), ImVec2(px(130), px(32)))) {
+            (void)disable_all_mod_features(m);
             ImGui::CloseCurrentPopup();
         }
         ImGui::SameLine();
@@ -1355,9 +1397,73 @@ static void ape_escape_draw_mod_manager_overhaul(LauncherModel* m, const Launche
     if bulk_marker not in launcher_text:
         if args.check:
             return fail("Mod Manager bulk-toggle confirmations have not been applied.", 1)
-        if launcher_text.count(old_bulk) != 1:
-            return fail("Pinned launcher no longer matches the guarded bulk-toggle controls.")
-        launcher_text = launcher_text.replace(old_bulk, new_bulk, 1)
+        if launcher_text.count(old_bulk) == 1:
+            launcher_text = launcher_text.replace(old_bulk, new_bulk, 1)
+        elif launcher_text.count(upstream_bulk) == 1:
+            enable_helper_marker = "APE_ESCAPE_ENABLE_ALL_MOD_FEATURES"
+            if enable_helper_marker not in launcher_text:
+                enable_helper = r'''/* APE_ESCAPE_ENABLE_ALL_MOD_FEATURES
+ * Enable every visible feature as one transaction. If a dependency,
+ * owner-file requirement or conflict makes one invalid, roll back the changes
+ * already made so the player is never left with a half-enabled set. */
+static bool ape_escape_enable_all_mod_features(LauncherModel* m) {
+    const auto* mods = m ? m->mods : nullptr;
+    if (!mods || !mods->feature_count || !mods->feature_get ||
+        !mods->feature_enable) {
+        return false;
+    }
+    const int count = mods->feature_count(mods->ctx);
+    std::vector<RecompLauncherCModFeature> features;
+    features.reserve(count > 0 ? (size_t)count : 0);
+    for (int index = 0; index < count; ++index) {
+        RecompLauncherCModFeature feature{};
+        if (!mods->feature_get(mods->ctx, index, &feature)) {
+            mod_note_error(m);
+            return false;
+        }
+        features.push_back(feature);
+    }
+    std::vector<size_t> changed;
+    changed.reserve(features.size());
+    for (size_t index = 0; index < features.size(); ++index) {
+        const RecompLauncherCModFeature& feature = features[index];
+        if (launcher_mod_feature_concealed(mods, &feature) || feature.enabled)
+            continue;
+        if (!mods->feature_enable(mods->ctx, feature.package_id, feature.id, 1)) {
+            char failure[sizeof(m->mod_status)] = {};
+            const char* error =
+                mods->last_error ? mods->last_error(mods->ctx) : nullptr;
+            if (error && error[0])
+                std::snprintf(failure, sizeof(failure), "%s", error);
+            for (auto rollback = changed.rbegin(); rollback != changed.rend();
+                 ++rollback) {
+                const RecompLauncherCModFeature& prior = features[*rollback];
+                mods->feature_enable(mods->ctx, prior.package_id, prior.id,
+                                     prior.enabled ? 1 : 0);
+            }
+            if (failure[0])
+                std::snprintf(m->mod_status, sizeof(m->mod_status), "%s", failure);
+            else
+                mod_note_error(m);
+            return false;
+        }
+        changed.push_back(index);
+    }
+    if (m->has_bios && m->bios_verify_for_rom_cb)
+        launcher_model_refresh_bios_status(m);
+    std::snprintf(m->mod_status, sizeof(m->mod_status),
+                  "All visible mod features enabled. Changes apply on PLAY.");
+    return true;
+}
+
+'''
+                enable_anchor = "static bool disable_all_mod_features("
+                if launcher_text.count(enable_anchor) != 1:
+                    return fail("Upstream Mod Manager no longer matches the guarded bulk-enable helper anchor.")
+                launcher_text = launcher_text.replace(enable_anchor, enable_helper + enable_anchor, 1)
+            launcher_text = launcher_text.replace(upstream_bulk, upstream_new_bulk, 1)
+        else:
+            return fail("Launcher no longer matches either supported Mod Manager bulk-toggle layout.")
 
     nav_marker = "APE_ESCAPE_MONKEPEDIA_NAV"
     if nav_marker not in launcher_text:
