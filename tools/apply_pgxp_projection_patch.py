@@ -143,10 +143,7 @@ EXTENSION_TEST_BLOCK = r'''    /* --- Ape Escape PGXP refinements: SF=0, LM, and
 def transform_cpp(text: str) -> str:
     marker = 'extern "C" int pgxp_project_precise(int64_t mac1, int64_t mac2, int64_t mac3,'
     start = text.find(marker)
-    end_marker = "
-}
-
-/* Defined below with the GPU consumer. */"
+    end_marker = chr(10) + "}" + chr(10) + chr(10) + "/* Defined below with the GPU consumer. */"
     end = text.find(end_marker, start)
     if start < 0 or end < 0:
         if "int shift, int lm, int32_t ir1" in text and "const double min_depth" in text:
