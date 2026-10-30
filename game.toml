@@ -33,6 +33,9 @@ memcard_dir = "saves"
 # jump straight into the game). LLE stays linked as the fallback/oracle for any
 # service the HLE tier doesn't implement. Env PSX_BIOS_HLE overrides at launch.
 bios_hle = true
+[timing]
+guest_cycle_scale = 2
+
 
 [timing]
 # Crabby Beach and other crowded gameplay scenes miss the original 30 FPS deadline
