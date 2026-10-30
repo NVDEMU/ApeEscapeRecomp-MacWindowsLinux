@@ -1,0 +1,162 @@
+name: Switch homebrew (experimental)
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [switch-sd-card-probe]
+    paths:
+      - 'CMakeLists.txt'
+      - 'generated/**'
+      - 'src/**'
+      - 'tools/switch/**'
+      - 'tools/apply_switch_network_portability_patch.py'
+      - 'tools/apply_switch_sdcard_patch.py'
+      - 'tools/apply_switch_runtime_portability_patch.py'
+      - '.github/workflows/switch-homebrew.yml'
+      - 'psxrecomp-v4'
+permissions:
+  contents: read
+
+jobs:
+  switch-homebrew:
+    runs-on: ubuntu-24.04
+    # Use devkitPro's maintained prebuilt Switch image: pkg.devkitpro.org
+    # currently returns HTTP 403 from hosted runners during pacman sync.
+    container:
+      image: devkitpro/devkita64:20260219
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout including runtime submodules
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify preinstalled devkitPro Switch toolchain
+        run: |
+          set -euo pipefail
+          test -x "$DEVKITPRO/devkitA64/bin/aarch64-none-elf-gcc"
+          test -x "$DEVKITPRO/tools/bin/elf2nro"
+          echo "DEVKITPRO=$DEVKITPRO" >> "$GITHUB_ENV"
+          echo "DEVKITA64=$DEVKITPRO/devkitA64" >> "$GITHUB_ENV"
+          echo "$DEVKITPRO/devkitA64/bin" >> "$GITHUB_PATH"
+          echo "$DEVKITPRO/tools/bin" >> "$GITHUB_PATH"
+
+      - name: Install host-side recompiler dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential cmake ninja-build pkg-config mame-tools curl python3
+          command -v chdman
+          cmake --version
+
+      - name: Download and validate private game disc
+        env:
+          GAME_ASSETS_TOKEN: ${{ secrets.GAME_ASSETS_TOKEN }}
+          GAME_ASSETS_REPO: NVDEMU/apeescapeprivateassets
+          GAME_ASSETS_TAG: thing
+          GAME_ASSETS_FILENAME: Ape.Escape.USA.chd
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/ape-disc" apeescape
+          python3 tools/download_disc.py "$RUNNER_TEMP/Ape Escape (USA).chd"
+
+      - name: Build host recompiler and OpenBIOS generator
+        run: |
+          set -euo pipefail
+          cmake -S psxrecomp-v4/recompiler -B psxrecomp-v4/recompiler/build-linux -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build psxrecomp-v4/recompiler/build-linux --parallel 2 --target psxrecomp-game psxrecomp-bios
+          (cd psxrecomp-v4 && PSXRECOMP_BIOS_BUILD=recompiler/build-linux bash tools/regen_bios.sh --config bios/OpenBIOS.toml)
+
+      - name: Extract disc and generate the native game translation
+        run: |
+          set -euo pipefail
+          chdman verify -i "$RUNNER_TEMP/Ape Escape (USA).chd"
+          chdman extractcd -i "$RUNNER_TEMP/Ape Escape (USA).chd" -o "$RUNNER_TEMP/Ape Escape (USA).cue" -ob "$RUNNER_TEMP/Ape Escape (USA).bin"
+          python3 psxrecomp-v4/tools/prepare_disc.py "$RUNNER_TEMP/Ape Escape (USA).cue" --config game.toml
+          test -s apeescape/SCUS_944.23
+          psxrecomp-v4/recompiler/build-linux/psxrecomp-game --config game.toml
+          test -s generated/SCUS_944.23_dispatch.c
+          compgen -G 'generated/SCUS_944.23_full_*.c' >/dev/null || test -s generated/SCUS_944.23_full.c
+
+      - name: Verify generated game sources and Switch toolchain
+        run: |
+          test -s generated/SCUS_944.23_dispatch.c
+          compgen -G 'generated/SCUS_944.23_full_*.c' >/dev/null || test -s generated/SCUS_944.23_full.c
+          aarch64-none-elf-gcc --version
+          aarch64-none-elf-g++ --version
+
+      - name: Apply Switch runtime portability and SD-card patches
+        run: |
+          set -euo pipefail
+          python3 tools/apply_switch_network_portability_patch.py --framework-root "$PWD/psxrecomp-v4"
+          python3 tools/apply_switch_sdcard_patch.py --framework-root "$PWD/psxrecomp-v4"
+          python3 tools/apply_switch_runtime_portability_patch.py --framework-root "$PWD/psxrecomp-v4"
+          grep -q 'PSX_RYUJINX_SDCARD_SCAN' psxrecomp-v4/runtime/src/main.cpp
+          grep -q 'retain renderer APIs and add the GL link shim' psxrecomp-v4/runtime/runtime.cmake
+          grep -q 'Switch-only OpenGL link shim' psxrecomp-v4/runtime/src/gpu_gl_switch_shim.c
+          grep -q 'force the software renderer on libnx' psxrecomp-v4/runtime/src/main.cpp
+          grep -q 'no process-spawned overlay compiler' psxrecomp-v4/runtime/src/autocompile.c
+          grep -q 'libnx diagnostic clock fallback' psxrecomp-v4/runtime/src/dma.c
+
+      - name: Configure full application for Switch
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake -S . -B build-switch -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_TOOLCHAIN_FILE="$DEVKITPRO/cmake/Switch.cmake" \
+            -DAPE_SWITCH_PORT=ON \
+            -DPSX_SDL_BACKEND=SDL2 \
+            -DBUILD_TESTING=OFF \
+            -DPSX_RECOMP_UI=OFF 2>&1 | tee switch-configure.log
+
+      - name: Compile full application
+        shell: bash
+        run: |
+          set -o pipefail
+          cmake --build build-switch --parallel 2 2>&1 | tee switch-build.log
+
+      - name: Convert runtime ELF to NRO and prepare test package
+        shell: bash
+        run: |
+          set -euo pipefail
+          NRO="$(find build-switch -type f -name '*.nro' -print -quit)"
+          if [ -z "$NRO" ]; then
+            ELF="$(find build-switch -type f -name 'ApeEscapeRecomp.elf' -print -quit)"
+            if [ -z "$ELF" ]; then
+              echo "::error::Runtime ELF missing; available ELF outputs:"
+              find build-switch -type f -name '*.elf' -print
+              exit 1
+            fi
+            NACP="$PWD/build-switch/ApeEscapeRecomp.nacp"
+            NRO="$PWD/build-switch/ApeEscapeRecomp.nro"
+            "$DEVKITPRO/tools/bin/nacptool" --create "Ape Escape Recompiled - Enhanced Edition" "NVDEMU" "0.1.0" "$NACP"
+            "$DEVKITPRO/tools/bin/elf2nro" "$ELF" "$NRO" --nacp="$NACP"
+          fi
+          test -s "$NRO"
+          mkdir -p switch-test-package/switch/ApeEscapeRecomp/data
+          cp "$NRO" switch-test-package/switch/ApeEscapeRecomp/ApeEscapeRecomp.nro
+          cat > switch-test-package/switch/ApeEscapeRecomp/data/README.txt <<'EOF'
+          Put your own Ape Escape (USA / SCUS-944.23) disc files here.
+          For CUE/BIN, put all referenced files in this folder and keep their
+          filenames consistent with the CUE's FILE entries. A CHD is also
+          accepted by the runtime when supported by its disc picker.
+          EOF
+          cp tools/switch/README.md switch-test-package/README.txt
+          cd switch-test-package
+          zip -r ../ApeEscapeRecomp-Switch-Experimental.zip .
+          cd ..
+          sha256sum "$NRO" ApeEscapeRecomp-Switch-Experimental.zip
+
+      - name: Upload experimental Switch package and diagnostics
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ApeEscapeRecomp-Switch-Experimental
+          path: |
+            ApeEscapeRecomp-Switch-Experimental.zip
+            devkitpro-install.log
+            switch-configure.log
+            switch-build.log
+          if-no-files-found: warn
+          retention-days: 14
