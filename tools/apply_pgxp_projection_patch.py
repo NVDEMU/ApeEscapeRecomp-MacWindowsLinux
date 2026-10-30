@@ -288,8 +288,7 @@ def main() -> int:
                 path.write_text(updated, encoding="utf-8")
                 changed.append(str(relative))
     if failures:
-        raise SystemExit("
-".join(failures))
+        raise SystemExit(chr(10).join(failures))
     if args.check:
         print("Ape Escape PGXP extension is present on all four framework files.")
     elif changed:
