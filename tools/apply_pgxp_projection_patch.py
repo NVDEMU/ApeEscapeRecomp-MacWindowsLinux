@@ -3,8 +3,8 @@
 
 Upstream now contains the original far-geometry / unclamped-projection work.
 This compatibility patch keeps the remaining Ape Escape refinements:
-both GTE SF modes, LM-aware IR saturation, and the hardware H/2 near-depth
-floor. It is intentionally pinned and fails closed on any other revision.
+both GTE SF modes, LM-aware IR saturation, and upstream's strict GTE divider
+overflow boundary. It is intentionally pinned and fails closed on other revisions.
 """
 from __future__ import annotations
 
@@ -47,11 +47,10 @@ NEW_FUNCTION = r'''extern "C" int pgxp_project_precise(int64_t mac1, int64_t mac
     }
     if ((uint32_t)(z_clamped ? 0xFFFF : z_int) != sz3) return 0;
 
-    /* The GTE's H/SZ divider is capped at 2. Treat H/2 as the nearest
-     * projectable depth rather than dropping near-camera vertices. */
-    const double depth = (double)mac3 / 4096.0;
-    const double min_depth = (double)h * 0.5;
-    const double z = depth > min_depth ? depth : min_depth;
+    /* Match the GTE's UNR divider-overflow qualifier. When H >= 2*SZ3,
+     * the quotient saturates and precise projection must fall back to IR. */
+    if ((int64_t)h >= 2 * z_int) return 0;
+    const double z = (double)mac3 / 4096.0;
     if (!(z > 0.0)) return 0;
 
     const double x = (double)mac1 / unit;
@@ -74,8 +73,8 @@ NEW_FUNCTION = r'''extern "C" int pgxp_project_precise(int64_t mac1, int64_t mac
 NEW_DECLARATION = '''/* Exact, host-only projection for preserve-projection mode. Inputs are the
  * unshifted GTE MAC1..3, SF shift (0 or 12), limit mode LM, stored IR1/IR2
  * and SZ3, H, OFX/OFY, and horizontal factor x_num/x_den. Reconstructs both
- * legal SF modes, validates LM-dependent IR saturation, and applies the
- * hardware divider's H/2 near-depth floor. Guest registers and FLAG remain
+ * legal SF modes and validates LM-dependent IR saturation while retaining
+ * the GTE's strict H >= 2*SZ divide-overflow rejection. Guest registers and FLAG remain
  * unchanged; pgxp_ppp_accept() still validates the exact packet word.
  * Return 2 for an opt-in IR/SZ-unclamped projection, 1 for ordinary precision. */
 int pgxp_project_precise(int64_t mac1, int64_t mac2, int64_t mac3, int shift,
@@ -85,7 +84,7 @@ int pgxp_project_precise(int64_t mac1, int64_t mac2, int64_t mac3, int shift,
 
 '''
 
-EXTENSION_TEST_BLOCK = r'''    /* --- Ape Escape PGXP refinements: SF=0, LM, and near-depth floor --- */
+EXTENSION_TEST_BLOCK = r'''    /* --- Ape Escape PGXP refinements: SF=0 and LM-aware saturation --- */
     {
         const int saved_preserve = pgxp_preserve_projection();
         pgxp_set_preserve_projection(1);
@@ -122,18 +121,18 @@ EXTENSION_TEST_BLOCK = r'''    /* --- Ape Escape PGXP refinements: SF=0, LM, and
               INT64_C(1000) * 4096, 12, 1, 32767, 0, 1000, 300,
               ofx, ofy, 1, 1, &x, &y) == 2);
 
-        /* When SZ is nearer than H/2, projection uses a maximum scale of 2. */
-        const int64_t near_m1 = INT64_C(100) * 4096 + 123;
-        const int64_t near_m2 = INT64_C(20) * 4096 + 77;
-        const int64_t near_m3 = INT64_C(100) * 4096 + 100;
-        CHECK(pgxp_project_precise(near_m1, near_m2, near_m3, 12, 0,
-              100, 20, 100, 300, ofx, ofy, 1, 1, &x, &y) == 1);
-        const double near_z_raw = (double)near_m3 / 4096.0;
-        const double near_z = near_z_raw > 150.0 ? near_z_raw : 150.0;
+        /* Just below the divide-overflow boundary, retain the exact MAC3
+         * fraction; at H == 2*SZ3 the upstream test above rejects it. */
+        const int64_t edge_m1 = INT64_C(100) * 4096 + 123;
+        const int64_t edge_m2 = INT64_C(20) * 4096 + 77;
+        const int64_t edge_m3 = INT64_C(150) * 4096 + 100;
+        CHECK(pgxp_project_precise(edge_m1, edge_m2, edge_m3, 12, 0,
+              100, 20, 150, 299, ofx, ofy, 1, 1, &x, &y) == 1);
+        const double edge_z = (double)edge_m3 / 4096.0;
         CHECK(std::abs(x - (int32_t)std::floor(
-              (160.0 + ((double)near_m1 / 4096.0) * 300.0 / near_z) * 65536.0)) <= 1);
+              (160.0 + ((double)edge_m1 / 4096.0) * 299.0 / edge_z) * 65536.0)) <= 1);
         CHECK(std::abs(y - (int32_t)std::floor(
-              (120.0 + ((double)near_m2 / 4096.0) * 300.0 / near_z) * 65536.0)) <= 1);
+              (120.0 + ((double)edge_m2 / 4096.0) * 299.0 / edge_z) * 65536.0)) <= 1);
 
         pgxp_set_preserve_projection(saved_preserve);
     }
@@ -146,10 +145,10 @@ def transform_cpp(text: str) -> str:
     end_marker = chr(10) + "}" + chr(10) + chr(10) + "/* Defined below with the GPU consumer. */"
     end = text.find(end_marker, start)
     if start < 0 or end < 0:
-        if "int shift, int lm, int32_t ir1" in text and "const double min_depth" in text:
+        if "int shift, int lm, int32_t ir1" in text and "(int64_t)h >= 2 * z_int" in text:
             return text
         raise RuntimeError("Could not locate upstream PGXP projection helper.")
-    if "int shift, int lm, int32_t ir1" in text[start:end] and "const double min_depth" in text[start:end]:
+    if "int shift, int lm, int32_t ir1" in text[start:end] and "(int64_t)h >= 2 * z_int" in text[start:end]:
         return text
     return text[:start] + NEW_FUNCTION + text[end + 2:]
 
@@ -160,7 +159,7 @@ def transform_header(text: str) -> str:
     start = text.find(start_marker)
     end = text.find(end_marker, start)
     if start < 0 or end < 0:
-        if "int lm, int32_t ir1" in text and "hardware divider's H/2 near-depth floor" in text:
+        if "int lm, int32_t ir1" in text and "GTE's strict H >= 2*SZ divide-overflow rejection" in text:
             return text
         raise RuntimeError("Could not locate upstream PGXP projection declaration.")
     return text[:start] + NEW_DECLARATION + text[end:]
@@ -233,7 +232,7 @@ def transform_gte(text: str) -> str:
 
 def transform_test(text: str) -> str:
     text = add_lm_arguments(text)
-    marker = "    /* --- Ape Escape PGXP refinements: SF=0, LM, and near-depth floor --- */"
+    marker = "    /* --- Ape Escape PGXP refinements: SF=0 and LM-aware saturation --- */"
     if marker in text:
         return text
     anchor = "    /* --- probe: the same decision, not counted --- */"
